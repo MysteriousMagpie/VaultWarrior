@@ -2,9 +2,11 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Iterator, List, Dict, Any, Tuple
+from typing import Iterator, List, Dict, Any, Tuple, Optional
 import fnmatch
 import hashlib
+import re
+import yaml
 
 import faiss  # type: ignore
 from sentence_transformers import SentenceTransformer  # type: ignore
@@ -49,6 +51,57 @@ def extract_headings(text: str) -> List[Tuple[int, str]]:
     return headings
 
 
+FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
+
+def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
+    """Return (metadata, body_without_frontmatter). If no frontmatter, metadata is {}."""
+    if not text.startswith('---'):
+        return {}, text
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        return {}, text
+    raw = m.group(1)
+    try:
+        meta = yaml.safe_load(raw) or {}
+        if not isinstance(meta, dict):
+            meta = {}
+    except Exception:
+        meta = {}
+    remainder = text[m.end():]
+    return meta, remainder
+
+
+def normalize_tags(meta: Dict[str, Any]) -> List[str]:
+    raw = meta.get('tags')
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        tags = [raw]
+    else:
+        try:
+            tags = list(raw)
+        except Exception:
+            return []
+    norm: List[str] = []
+    for t in tags:
+        if not isinstance(t, str):
+            continue
+        t = t.strip()
+        if not t:
+            continue
+        if t.startswith('#'):
+            t = t[1:]
+        norm.append(t.lower())
+    # de-duplicate preserving order
+    seen = set()
+    out: List[str] = []
+    for t in norm:
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
 def heading_for_offset(headings: List[Tuple[int, str]], pos: int) -> str:
     current = ""
     for off, h in headings:
@@ -78,11 +131,13 @@ def build_index(cfg: Config, model: SentenceTransformer | None = None) -> Dict[s
     all_chunks: List[Chunk] = []
     texts: List[str] = []
     for file in files:
-        text = file.read_text(encoding='utf-8', errors='ignore')
-        headings = extract_headings(text)
-        spans = chunk_markdown(text, params['chunk_chars'], params['chunk_overlap'])
+        full_text = file.read_text(encoding='utf-8', errors='ignore')
+        meta, body = parse_frontmatter(full_text)
+        tags = normalize_tags(meta)
+        headings = extract_headings(body)
+        spans = chunk_markdown(body, params['chunk_chars'], params['chunk_overlap'])
         for i, (s, e) in enumerate(spans):
-            chunk_text = text[s:e]
+            chunk_text = body[s:e]
             heading = heading_for_offset(headings, s)
             chunk_id = f"{file.name}-{i}-{_hash_text(chunk_text)}"
             all_chunks.append(Chunk({
@@ -91,6 +146,7 @@ def build_index(cfg: Config, model: SentenceTransformer | None = None) -> Dict[s
                 'start': s,
                 'end': e,
                 'heading': heading,
+                'tags': tags,
             }))
             texts.append(chunk_text)
     if not texts:

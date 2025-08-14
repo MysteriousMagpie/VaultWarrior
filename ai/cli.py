@@ -11,6 +11,10 @@ from ai.core import threads as threads_mod
 from ai.core import llm as llm_mod
 from ai.core import writeback as writeback_mod
 from ai.core import gitwrap as gitwrap_mod
+import re
+import shutil
+import time
+import yaml
 
 app = typer.Typer(help="Vault-aware RAG planning assistant.")
 console = Console()
@@ -53,10 +57,12 @@ def ask(
     vault_path: str = typer.Option('.', help="Vault path"),
     filters: List[str] = typer.Option([], "--filters", help="Path glob filters"),
     k: Optional[int] = typer.Option(None, "--k"),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Filter by tag"),
+    path_glob: Optional[str] = typer.Option(None, "--path", help="Filter by file path glob"),
 ):
     """One-off RAG question with citations."""
     cfg = config_mod.load_config(vault_path)
-    results = retrieve_mod.retrieve(cfg, question, k=k)
+    results = retrieve_mod.retrieve(cfg, question, k=k, tag=tag, path_glob=path_glob)
     console.print(f"Question: [bold]{question}[/bold]")
     console.print("Sources:\n" + retrieve_mod.format_citations(results))
 
@@ -173,6 +179,162 @@ def doctor(vault_path: str = typer.Option('.', help="Vault path")):
 @app.command()
 def daemon():  # placeholder
     console.print("Daemon not implemented yet.")
+
+
+def _ensure_md_path(p: Path) -> Path:
+    if p.suffix.lower() != '.md':
+        return p.with_suffix('.md')
+    return p
+
+
+@app.command()
+def new(
+    name: str = typer.Argument(..., help="Path or name for new note (relative to vault)"),
+    vault_path: str = typer.Option('.', help="Vault path"),
+    title: Optional[str] = typer.Option(None, "--title"),
+    tags: List[str] = typer.Option([], "--tag"),
+    no_frontmatter: bool = typer.Option(False, "--no-frontmatter", help="Do not add template frontmatter"),
+):
+    """Create a new note with optional frontmatter template and reindex."""
+    cfg = config_mod.load_config(vault_path)
+    vault = cfg.vault_path
+    rel = Path(name)
+    target = _ensure_md_path(vault / rel)
+    if target.exists():
+        raise typer.BadParameter(f"File exists: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    note_title = title or target.stem.replace('_', ' ').replace('-', ' ').title()
+    fm = ''
+    if not no_frontmatter:
+        ts = time.strftime('%Y-%m-%dT%H:%M:%S')
+        tag_list = [t.lstrip('#').lower() for t in tags]
+        fm = ('---\n'
+              f'title: {note_title}\n'
+              f'created: {ts}\n'
+              f'tags: {tag_list}\n'
+              '---\n\n')
+    target.write_text(fm, encoding='utf-8')
+    console.print(f"Created {target.relative_to(vault)}")
+    index_mod.update_index_incremental(cfg)
+    gitwrap_mod.auto_commit(cfg, [target], 'new', target.name, 0)
+
+
+def _update_links(vault: Path, old_rel: str, new_rel: str):
+    """Update wiki-style and markdown links referencing old_rel to new_rel."""
+    # Patterns: [[old_rel]] possibly with anchors or alias; markdown: ](old_rel)
+    # We'll search every md file. Simple heuristic.
+    for f in vault.rglob('*.md'):
+        txt = f.read_text(encoding='utf-8', errors='ignore')
+        changed = False
+        # wiki links
+        # Accept variants: [[old_rel]], [[old_rel#anchor]], [[old_rel|alias]]
+        def repl_wiki(m):
+            nonlocal changed
+            changed = True
+            inner = m.group(1)
+            rest = m.group(2) or ''
+            return f'[[{new_rel}{rest}]]'
+        pattern_wiki = re.compile(rf"\[\[({re.escape(old_rel)})([^\]]*)\]\]")
+        txt2 = pattern_wiki.sub(repl_wiki, txt)
+        # markdown links: (old_rel) or (old_rel#anchor)
+        def repl_md(m):
+            nonlocal changed
+            changed = True
+            suffix = m.group(2) or ''
+            return f'({new_rel}{suffix})'
+        pattern_md = re.compile(rf"\((?:./)?({re.escape(old_rel)})(#[^)]+)?\)")
+        txt3 = pattern_md.sub(repl_md, txt2)
+        if changed:
+            f.write_text(txt3, encoding='utf-8')
+
+
+@app.command()
+def mv(
+    old: str = typer.Argument(..., help="Existing note path (relative)"),
+    new: str = typer.Argument(..., help="New note path (relative)"),
+    vault_path: str = typer.Option('.', help="Vault path"),
+    update_links: bool = typer.Option(True, "--update-links/--no-update-links"),
+):
+    """Rename or move a note; updates links and reindexes."""
+    cfg = config_mod.load_config(vault_path)
+    vault = cfg.vault_path
+    src = _ensure_md_path(vault / old)
+    dst = _ensure_md_path(vault / new)
+    if not src.exists():
+        raise typer.BadParameter(f"Source not found: {src}")
+    if dst.exists():
+        raise typer.BadParameter(f"Destination exists: {dst}")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    src_rel = src.relative_to(vault).as_posix()
+    dst_rel = dst.relative_to(vault).as_posix()
+    shutil.move(str(src), str(dst))
+    if update_links:
+        _update_links(vault, src_rel, dst_rel)
+    # update frontmatter title if exists
+    try:
+        txt = dst.read_text(encoding='utf-8')
+        if txt.startswith('---'):
+            m = re.match(r"---\n(.*?)\n---\n", txt, re.DOTALL)
+            if m:
+                fm_raw = m.group(1)
+                meta = yaml.safe_load(fm_raw) or {}
+                if isinstance(meta, dict):
+                    new_title = dst.stem.replace('_', ' ').replace('-', ' ').title()
+                    if meta.get('title') != new_title:
+                        meta['title'] = new_title
+                        new_fm = '---\n' + yaml.safe_dump(meta, sort_keys=False).strip() + '\n---\n'
+                        body = txt[m.end():]
+                        dst.write_text(new_fm + body, encoding='utf-8')
+    except Exception:
+        pass
+    index_mod.update_index_incremental(cfg)
+    gitwrap_mod.auto_commit(cfg, [dst], 'mv', f"{src_rel}->{dst_rel}", 0)
+    console.print(f"Moved {src_rel} -> {dst_rel}")
+
+
+def _find_backlinks(vault: Path, target_rel: str) -> List[Path]:
+    hits: List[Path] = []
+    pattern = re.compile(rf"\[\[({re.escape(target_rel)})([^\]]*)\]\]|
+                           \((?:./)?({re.escape(target_rel)})(#[^)]+)?\)", re.VERBOSE)
+    for f in vault.rglob('*.md'):
+        try:
+            txt = f.read_text(encoding='utf-8', errors='ignore')
+        except Exception:
+            continue
+        if pattern.search(txt):
+            hits.append(f)
+    return hits
+
+
+@app.command()
+def rm(
+    path: str = typer.Argument(..., help="Note path to delete (relative)"),
+    vault_path: str = typer.Option('.', help="Vault path"),
+    force: bool = typer.Option(False, "--force", help="Skip backlink check"),
+):
+    """Delete a note after checking backlinks; reindex."""
+    cfg = config_mod.load_config(vault_path)
+    vault = cfg.vault_path
+    target = _ensure_md_path(vault / path)
+    if not target.exists():
+        raise typer.BadParameter(f"Not found: {target}")
+    rel = target.relative_to(vault).as_posix()
+    if not force:
+        backlinks = _find_backlinks(vault, rel)
+        if backlinks:
+            console.print(f"[yellow]Warning:[/yellow] {len(backlinks)} files link to {rel}:")
+            for b in backlinks[:10]:
+                console.print(f" - {b.relative_to(vault)}")
+            if len(backlinks) > 10:
+                console.print(" (more omitted)")
+            confirm = typer.confirm("Proceed with deletion?", default=False)
+            if not confirm:
+                console.print("Aborted.")
+                raise typer.Exit(1)
+    target.unlink()
+    index_mod.update_index_incremental(cfg)
+    gitwrap_mod.auto_commit(cfg, [], 'rm', rel, 0)
+    console.print(f"Deleted {rel}")
 
 if __name__ == "__main__":  # pragma: no cover
     app()
