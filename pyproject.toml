@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vault-ai-cli"
+version = "0.1.0"
+description = "Vault-aware RAG planning CLI for Obsidian vaults"
+readme = "README.md"
+authors = [ { name = "Your Name", email = "you@example.com" } ]
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Intended Audience :: Developers",
+  "Environment :: Console"
+]
+dependencies = [
+  "typer[all]>=0.12.0",
+  "rich>=13.7.0",
+  "pyyaml>=6.0.1",
+  "sentence-transformers>=2.7.0",
+  "faiss-cpu>=1.8.0",
+  "openai>=1.30.0",
+  "watchfiles>=0.21.0",
+  "gitpython>=3.1.43"
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "ruff", "mypy"]
+
+[project.scripts]
+ai = "ai.cli:app"
+
+[tool.setuptools.package-dir]
+"ai" = "ai"
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+
