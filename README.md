@@ -115,6 +115,9 @@ ai plan <slug> [--weekly] [--vault-path PATH] [--write]
 
 ai doctor [--vault-path PATH]
 	Lightweight checks (config exists, index present, etc.).
+
+ai enrich [--vault-path PATH] [--apply] [--no-add-tags]
+	Dry-run (default) or apply normalization of frontmatter (title, created, inferred tags).
 ```
 
 ### Environment Variables

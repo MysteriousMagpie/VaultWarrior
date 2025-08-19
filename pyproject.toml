@@ -29,6 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ruff", "mypy"]
+web = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0"]
 
 [project.scripts]
 ai = "ai.cli:app"

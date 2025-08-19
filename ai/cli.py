@@ -15,6 +15,7 @@ import re
 import shutil
 import time
 import yaml
+import datetime
 
 app = typer.Typer(help="Vault-aware RAG planning assistant.")
 console = Console()
@@ -294,8 +295,8 @@ def mv(
 
 def _find_backlinks(vault: Path, target_rel: str) -> List[Path]:
     hits: List[Path] = []
-    pattern = re.compile(rf"\[\[({re.escape(target_rel)})([^\]]*)\]\]|
-                           \((?:./)?({re.escape(target_rel)})(#[^)]+)?\)", re.VERBOSE)
+    # Combine wiki-style and markdown link patterns referencing the target.
+    pattern = re.compile(rf"\[\[({re.escape(target_rel)})([^\]]*)\]\]|\((?:./)?({re.escape(target_rel)})(#[^)]+)?\)")
     for f in vault.rglob('*.md'):
         try:
             txt = f.read_text(encoding='utf-8', errors='ignore')
@@ -335,6 +336,80 @@ def rm(
     index_mod.update_index_incremental(cfg)
     gitwrap_mod.auto_commit(cfg, [], 'rm', rel, 0)
     console.print(f"Deleted {rel}")
+
+
+@app.command()
+def enrich(
+    vault_path: str = typer.Option('.', help="Vault path"),
+    apply: bool = typer.Option(False, "--apply", help="Write changes (otherwise dry-run)"),
+    add_tags: bool = typer.Option(True, "--add-tags/--no-add-tags", help="Infer tags from path folders if missing"),
+):
+    """Normalize / add frontmatter across existing notes.
+
+    - Adds frontmatter if absent with: title, created timestamp, tags (optional)
+    - If present, preserves existing keys; adds missing title / tags only.
+    - Infers title from filename if absent.
+    - Infers tags from folder path segments (excluding leading '.') if enabled and tags were missing.
+    """
+    cfg = config_mod.load_config(vault_path)
+    vault = cfg.vault_path
+    changed: List[Path] = []
+    examined = 0
+    now_iso = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    for p in vault.rglob('*.md'):
+        rel = p.relative_to(vault).as_posix()
+        # skip internal dirs
+        if rel.startswith('_ai/') or rel.startswith('daily/'):
+            continue
+        try:
+            text = p.read_text(encoding='utf-8')
+        except Exception:
+            continue
+        meta, body = index_mod.parse_frontmatter(text)
+        had_frontmatter = bool(meta)
+        updated = False
+        if not had_frontmatter:
+            meta = {}
+        # title
+        if 'title' not in meta or not meta.get('title'):
+            meta['title'] = p.stem.replace('_', ' ').replace('-', ' ').title()
+            updated = True
+        # created
+        if 'created' not in meta:
+            meta['created'] = now_iso
+            updated = True
+        # tags inference only if missing
+        if add_tags and ('tags' not in meta or not meta.get('tags')):
+            # derive from path segments except filename
+            parts = list(p.relative_to(vault).parts[:-1])
+            tag_candidates = []
+            for seg in parts:
+                seg_clean = seg.strip().lower()
+                if not seg_clean or seg_clean.startswith('.'):
+                    continue
+                # sanitize to simple word
+                seg_clean = re.sub(r'[^a-z0-9_-]+', '', seg_clean)
+                if seg_clean:
+                    tag_candidates.append(seg_clean)
+            if tag_candidates:
+                meta['tags'] = tag_candidates
+                updated = True
+        if updated:
+            new_fm = '---\n' + yaml.safe_dump(meta, sort_keys=False).strip() + '\n---\n\n'
+            new_text = new_fm + body if body else new_fm
+            if apply:
+                p.write_text(new_text, encoding='utf-8')
+            changed.append(p)
+        examined += 1
+    if changed:
+        console.print(f"Enrich: {'updated' if apply else 'would update'} {len(changed)} / {examined} notes.")
+    else:
+        console.print(f"Enrich: no changes across {examined} notes.")
+    if apply and changed:
+        # reindex after metadata changes
+        index_mod.update_index_incremental(cfg)
+        gitwrap_mod.auto_commit(cfg, changed, 'enrich', 'frontmatter', 0)
+        console.print("Reindexed after enrichment.")
 
 if __name__ == "__main__":  # pragma: no cover
     app()

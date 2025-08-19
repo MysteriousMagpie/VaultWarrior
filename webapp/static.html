@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Vault Web</title>
+<style>
+body { font-family: system-ui, sans-serif; margin: 0; display: flex; height: 100vh; }
+#sidebar { width: 300px; border-right: 1px solid #ddd; padding: 0.75rem; overflow-y:auto; }
+#main { flex: 1; display: flex; flex-direction: column; }
+#chat { flex: 1; overflow-y:auto; padding: 0.75rem; }
+#input { display:flex; gap:0.5rem; padding:0.5rem; border-top:1px solid #ddd; }
+pre { background:#f6f8fa; padding:0.5rem; border-radius:4px; }
+.file { font-size: 0.85rem; margin:0 0 2px; }
+.thread { cursor:pointer; padding:2px 4px; border-radius:4px; }
+.thread:hover { background:#eee; }
+#vaultPicker { margin-bottom:0.5rem; }
+</style>
+</head>
+<body>
+<div id="sidebar">
+  <h3>Setup</h3>
+  <input id="vaultPath" placeholder="/path/to/vault" style="width:100%;" />
+  <button id="setVault">Select Vault</button>
+  <button id="reindex">Reindex</button>
+  <div id="status" style="margin-top:0.5rem; font-size:0.8rem; color:#555"></div>
+  <h3>Files</h3>
+  <div id="files"></div>
+  <button id="openFile">Open Selected</button>
+  <div style="margin-top:0.5rem;">
+    <textarea id="fileContent" style="width:100%;height:120px;display:none;"></textarea>
+    <button id="saveFile" style="display:none;">Save</button>
+  </div>
+  <h3>Threads</h3>
+  <div id="threads"></div>
+  <input id="newThread" placeholder="new-thread" style="width:100%;" />
+  <button id="addThread">Add Thread</button>
+</div>
+<div id="main">
+  <div id="chat"></div>
+  <div id="input">
+    <input id="question" placeholder="Ask or chat..." style="flex:1;" />
+    <button id="askBtn">Ask</button>
+    <button id="chatBtn">Chat</button>
+  </div>
+</div>
+<script>
+let currentThread = null;
+let selectedFile = null;
+async function api(path, opts={}) {
+  const r = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts));
+  if(!r.ok){ throw new Error(await r.text()) }
+  return r.json();
+}
+function appendChat(role, text){
+  const el = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.innerHTML = `<strong>${role}:</strong> ${text}`;
+  el.appendChild(div); el.scrollTop = el.scrollHeight;
+}
+async function refreshTree(){
+  try {
+    const data = await api('/api/tree');
+    const files = document.getElementById('files');
+    files.innerHTML = '';
+    data.files.slice(0,500).forEach(f=>{
+      const d=document.createElement('div'); d.className='file'; d.textContent=f.file; d.onclick=()=>{selectedFile=f.file; document.querySelectorAll('.file').forEach(n=>n.style.background=''); d.style.background='#e0f3ff';}; files.appendChild(d);
+    });
+  } catch(e){ console.warn(e); }
+  try {
+    const data = await api('/api/threads');
+    const tdiv = document.getElementById('threads'); tdiv.innerHTML='';
+    data.threads.forEach(t=>{
+      const d=document.createElement('div'); d.className='thread'; d.textContent=t; d.onclick=()=>{currentThread=t; appendChat('system', 'Selected thread '+t);}; tdiv.appendChild(d);
+    });
+  } catch(e){ console.warn(e); }
+}
+
+document.getElementById('setVault').onclick = async () => {
+  const path = document.getElementById('vaultPath').value.trim();
+  if(!path) return;
+  try {
+    const res = await api('/api/vault', {method:'POST', body: JSON.stringify({path})});
+    document.getElementById('status').textContent='Vault: '+res.vault;
+    await refreshTree();
+  } catch(e){ alert(e); }
+};
+
+document.getElementById('reindex').onclick = async () => {
+  try { const m = await api('/api/index', {method:'POST'}); appendChat('system', 'Indexed '+m.total_chunks+' chunks'); }
+  catch(e){ alert(e); }
+};
+
+document.getElementById('addThread').onclick = async () => {
+  const slug = document.getElementById('newThread').value.trim();
+  if(!slug) return;
+  try { await api('/api/thread', {method:'POST', body:JSON.stringify({slug})}); currentThread=slug; appendChat('system', 'Thread created '+slug); refreshTree(); }
+  catch(e){ alert(e); }
+};
+
+document.getElementById('askBtn').onclick = async () => {
+  const q = document.getElementById('question').value.trim(); if(!q) return;
+  appendChat('you', q);
+  try { const res = await api('/api/ask', {method:'POST', body:JSON.stringify({question:q})}); appendChat('assistant', '[results]\n'+res.results.map(r=>r.file+' '+(r.heading||'')).join('\n')); }
+  catch(e){ appendChat('error', e); }
+};
+
+document.getElementById('chatBtn').onclick = async () => {
+  const q = document.getElementById('question').value.trim(); if(!q) return;
+  if(!currentThread){ alert('Select or create a thread first'); return; }
+  appendChat('you', q);
+  try { const res = await api('/api/chat', {method:'POST', body:JSON.stringify({thread:currentThread,message:q,write:true})}); appendChat('assistant', res.answer); }
+  catch(e){ appendChat('error', e); }
+};
+
+document.getElementById('openFile').onclick = async () => {
+  if(!selectedFile){ alert('Select a file first'); return; }
+  try { const res = await api('/api/file?path='+encodeURIComponent(selectedFile));
+    const ta=document.getElementById('fileContent');
+    ta.style.display='block';
+    document.getElementById('saveFile').style.display='inline-block';
+    ta.value=res.content;
+  } catch(e){ alert(e); }
+};
+
+document.getElementById('saveFile').onclick = async () => {
+  if(!selectedFile) return;
+  try { await api('/api/file', {method:'PUT', body:JSON.stringify({path:selectedFile, content:document.getElementById('fileContent').value})}); appendChat('system','Saved '+selectedFile); }
+  catch(e){ alert(e); }
+};
+</script>
+</body>
+</html>
