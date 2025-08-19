@@ -1,6 +1,6 @@
 # AI Vault Planning CLI (early scaffold)
 
-This is an early scaffold implementing core building blocks for a vault-aware RAG assistant CLI `ai` for Obsidian-style markdown vaults.
+Opinionated, vault‑aware Retrieval Augmented Generation (RAG) + planning CLI named `ai` for Obsidian‑style markdown vaults. Start totally from scratch and turn a plain note folder into an indexed, queryable, threaded planning surface.
 
 ## Features (implemented so far)
 - `ai init <vault_path>` creates `_ai/config.yaml`, thread, and daily directories.
@@ -22,6 +22,203 @@ This is an early scaffold implementing core building blocks for a vault-aware RA
 ```bash
 pip install -e .[dev]
 ```
+
+Or create / activate a virtualenv first:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -e .[dev]
+```
+
+## Quickstart (from absolute zero)
+
+```bash
+# 1. (Optional) create a test vault
+mkdir -p ~/MyVault && cd ~/MyVault
+echo "# Project X\n\nInitial notes." > ProjectX.md
+
+# 2. Initialize AI scaffolding
+ai init .
+
+# 3. Build the embeddings index (re-run after note edits)
+ai index .
+
+# 4. Start a planning / discussion thread
+ai thread new kickoff --vault-path . --seed "Kickoff notes: clarify scope"
+
+# 5. Ask an ad-hoc question (retrieval only)
+ai ask "What did I note about scope?" --vault-path .
+
+# 6. (If chatting / planning) set API key
+export OPENAI_API_KEY=sk-...   # required for chat / plan
+
+# 7. Continue threaded chat and persist answer
+ai chat kickoff "Summarize current scope and next 2h task" --vault-path . --write
+
+# 8. Add a quick capture into today's daily note
+ai capture "Idea: Add design sketch for data pipeline" --vault-path . --write
+
+# 9. Weekly planning checkpoint (placeholder prompt right now)
+ai plan kickoff --vault-path . --weekly --write
+
+# 10. Sanity check the setup
+ai doctor --vault-path .
+```
+
+## Mental Model / Concepts
+
+| Concept | What It Is | Where It Lives |
+|---------|------------|----------------|
+| Vault | Your markdown knowledge base | Any folder you point `ai` at |
+| Config | Minimal YAML controlling models/index path | `_ai/config.yaml` |
+| Index | FAISS vector store built from chunks of notes | `_ai/index/` |
+| Thread | Persistent conversation/planning log with frontmatter | `_ai/threads/<slug>.md` |
+| Daily Note | Date-stamped capture file | `_ai/daily/YYYY-MM-DD.md` |
+| Capture | Fast append of a snippet to today's daily | Command `ai capture` |
+| Ask | One-off retrieval + citations (no write) | `ai ask` |
+| Chat | Retrieval + LLM answer inside a thread | `ai chat <slug>` |
+| Plan | Periodic summarization / checkpoint (LLM) | `ai plan <slug>` |
+
+## Typical Flow
+
+1. Add / edit notes normally in your editor.
+2. Run `ai index` when you've materially changed notes (incremental watch mode is future work).
+3. Use `ai ask` for quick factual retrieval with citations.
+4. Promote ongoing work to a thread: `ai thread new feature-x` then `ai chat feature-x ... --write`.
+5. Periodically run `ai plan feature-x --weekly --write` to generate a checkpoint summary.
+6. Capture stray ideas quickly with `ai capture` so they are searchable after next index build.
+
+## Command Reference (current subset)
+
+```text
+ai init <vault_path>
+	Scaffold `_ai/` directory (config, threads, daily). Idempotent.
+
+ai index <vault_path>
+	Parse markdown, chunk, embed, build / replace FAISS index.
+
+ai thread new <slug> [--vault-path PATH] [--seed TEXT]
+	Create a new thread file with optional seed content.
+
+ai ask "question" [--vault-path PATH]
+	Retrieve top chunks + print answer provenance (citations list). No write side-effects.
+
+ai chat <slug> "message" [--vault-path PATH] [--write]
+	Retrieval + streaming answer in context of thread; `--write` appends assistant message.
+
+ai capture "text" [--vault-path PATH] [--write]
+	Append snippet to today's daily note (with timestamp). `--write` persists (planned default later).
+
+ai plan <slug> [--weekly] [--vault-path PATH] [--write]
+	Run planning / summarization prompt variant; cadence flag influences prompt flavor.
+
+ai doctor [--vault-path PATH]
+	Lightweight checks (config exists, index present, etc.).
+```
+
+### Environment Variables
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `OPENAI_API_KEY` | For chat/plan | Auth for LLM calls (only OpenAI placeholder currently). |
+| `AI_VAULT_MODEL` | Optional | Override default model name (if support added). |
+
+### File Layout After Init
+
+```
+_ai/
+  config.yaml
+  index/                # FAISS files
+  threads/
+	kickoff.md
+  daily/
+	2025-08-19.md
+```
+
+### Thread File Sketch
+
+```markdown
+---
+slug: kickoff
+created: 2025-08-19T12:34:56Z
+---
+# kickoff
+
+> seed: Kickoff notes: clarify scope
+
+## 2025-08-19 12:40
+user: Summarize current scope and next 2h task
+assistant: (LLM answer...) 
+```
+
+## Updating / Re-indexing Strategy
+
+Until watch mode exists, batch updates: make note edits, then run `ai index`. For large vaults, consider excluding heavy folders (images, attachments) at the file system or future ignore patterns (planned).
+
+## Git Hygiene
+
+You may prefer to ignore raw FAISS artifacts:
+```
+_ai/index/*
+!_ai/index/.gitkeep
+```
+Keep config, threads, daily notes versioned for change history.
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---------|--------------|-----|
+| `ai` command not found | Editable install not done / wrong venv | Re-run install inside active venv: `pip install -e .[dev]` |
+| Chat fails with auth error | Missing `OPENAI_API_KEY` | `export OPENAI_API_KEY=sk-...` |
+| Retrieval returns nothing | Index not built or outdated | Run `ai index <vault>` again |
+| Thread file not updating | Forgot `--write` | Add `--write` flag |
+| Slow indexing | Very large vault | Future: incremental watch; meanwhile prune or split vault |
+
+## Extending (High-Level)
+
+Planned extension seams:
+* Backend LLM provider abstraction (currently single OpenAI placeholder).
+* Incremental indexer / watcher daemon.
+* Advanced retrieval filters (frontmatter tags, path globs, temporal recency weighting).
+* Automatic thread summarization windowing.
+* Git auto-commit policy for captures and thread deltas.
+
+## Minimal Programmatic Use (Illustrative Only)
+
+Once modules stabilize you might import internal APIs (names subject to change):
+```python
+from ai.core.index import build_index
+from ai.core.retrieve import retrieve
+
+index = build_index(vault_path="/path/to/Vault")
+results = retrieve(index, query="open tasks in project x")
+for r in results:
+	print(r.score, r.path)
+```
+API surface is not locked yet; expect refactors.
+
+## Security / Privacy Notes
+
+All vault parsing + embedding happens locally; only the prompt content and selected retrieved chunks are sent to the LLM provider (OpenAI) when you invoke chat/plan. Sensitive content redaction helpers are roadmap items (tests reference forthcoming redaction logic).
+
+## Performance Tips
+
+* Favor shorter headings / sections; chunker likely splits by heading and length threshold.
+* Rebuild index during natural breaks; heavy continuous editing can wait for a single batch.
+* Keep high-churn scratch notes small to avoid constant large-chunk invalidation later (post‑incremental feature).
+
+## Contributing
+
+Run tests before proposing changes:
+```bash
+pytest -q
+```
+Style / lint tooling will be added as project matures.
+
+---
+
+If you need deeper details see `Init.md` or ask for a specific area (indexing pipeline, retrieval ranking, planning prompt scaffolds, etc.).
 
 ## Usage Example
 ```bash
