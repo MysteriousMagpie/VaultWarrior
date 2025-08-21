@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pathlib import Path
+import os
 from typing import List, Optional
 
 from ai.core import config as config_mod
@@ -43,6 +44,7 @@ class FileUpdate(BaseModel):
     content: str
 
 _cached_cfg: config_mod.Config | None = None
+BROWSE_ROOT = Path(os.environ.get('VAULT_BROWSE_ROOT', '.')).expanduser().resolve()
 
 def get_cfg() -> config_mod.Config:
     if _cached_cfg is None:
@@ -122,6 +124,33 @@ def list_threads():
 @app.get('/api/health')
 def health():
     return {"ok": True}
+
+@app.get('/api/list')
+def list_dir(rel: str = Query('', description="Relative path under VAULT_BROWSE_ROOT")):
+    # security: disallow traversal
+    if '..' in rel.split('/'):
+        raise HTTPException(400, 'Invalid path')
+    base = (BROWSE_ROOT / rel).resolve()
+    if not str(base).startswith(str(BROWSE_ROOT)):
+        raise HTTPException(400, 'Escapes root')
+    if not base.exists():
+        raise HTTPException(404, 'Not found')
+    if not base.is_dir():
+        raise HTTPException(400, 'Not a directory')
+    entries = []
+    try:
+        for child in sorted(base.iterdir(), key=lambda p: (p.is_file(), p.name.lower())):
+            entries.append({
+                'name': child.name,
+                'type': 'dir' if child.is_dir() else 'file',
+            })
+    except PermissionError:
+        raise HTTPException(403, 'Permission denied')
+    return {
+        'root': str(BROWSE_ROOT),
+        'path': str(base.relative_to(BROWSE_ROOT)),
+        'entries': entries,
+    }
 
 @app.get('/', response_class=HTMLResponse)
 def root():  # simple redirect meta

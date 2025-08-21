@@ -1,0 +1,37 @@
+{
+  "package": {
+    "productName": "VaultWarrior",
+    "version": "0.1.0"
+  },
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devPath": "../ui",
+    "distDir": "../ui"
+  },
+  "tauri": {
+    "bundle": {
+      "active": true,
+      "identifier": "com.example.vaultwarrior",
+      "targets": ["app"],
+      "icon": []
+    },
+    "allowlist": {
+      "shell": {
+        "all": true
+      },
+      "dialog": {"open": true}
+    },
+    "windows": [
+      {
+        "title": "VaultWarrior",
+        "width": 1100,
+        "height": 800,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}

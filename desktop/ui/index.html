@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>VaultWarrior Desktop</title>
+<style>
+body { font-family: system-ui, sans-serif; margin:0; }
+header { display:flex; gap:0.5rem; padding:0.5rem; background:#1e293b; color:#fff; align-items:center; }
+button { cursor:pointer; }
+#log { font-size:12px; background:#0f172a; color:#cbd5e1; padding:4px; height:90px; overflow:auto; }
+#appframe { width:100%; height: calc(100vh - 140px); border:0; }
+.badge { background:#334155; padding:2px 6px; border-radius:12px; font-size:11px; }
+</style>
+<script>
+const { invoke } = window.__TAURI__.tauri;
+const { open } = window.__TAURI__.dialog;
+let backendPort = 37999;
+
+function log(msg){ const el=document.getElementById('log'); el.textContent += msg+"\n"; el.scrollTop=el.scrollHeight; }
+
+async function ensureBackend(){
+  try {
+    const info = await invoke('start_backend', {});
+    backendPort = info.port;
+    log('Backend on port '+backendPort);
+    document.getElementById('appframe').src = 'http://127.0.0.1:'+backendPort+'/app/static.html';
+  } catch(e){ log('Backend error: '+e); }
+}
+
+async function selectVault(){
+  try {
+    const dir = await open({ directory: true, multiple: false });
+    if(!dir){ return; }
+    log('Selected vault: '+dir);
+    // POST to backend
+    await fetch('http://127.0.0.1:'+backendPort+'/api/vault', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: dir})});
+    log('Vault registered.');
+  } catch(e){ log('Vault select error: '+e); }
+}
+
+async function reindex(){
+  try {
+    const r = await fetch('http://127.0.0.1:'+backendPort+'/api/index', {method:'POST'});
+    if(!r.ok){ log('Reindex failed '+r.status); return; }
+    const j = await r.json();
+    log('Indexed '+j.total_chunks+' chunks');
+  } catch(e){ log('Reindex error '+e); }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  ensureBackend();
+  document.getElementById('btnVault').onclick = selectVault;
+  document.getElementById('btnReindex').onclick = reindex;
+});
+</script>
+</head>
+<body>
+<header>
+  <strong>VaultWarrior Desktop</strong>
+  <span class="badge">Tauri</span>
+  <button id="btnVault">Select Vault</button>
+  <button id="btnReindex">Reindex</button>
+</header>
+<iframe id="appframe"></iframe>
+<pre id="log"></pre>
+</body>
+</html>

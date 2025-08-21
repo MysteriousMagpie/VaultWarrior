@@ -14,13 +14,20 @@ pre { background:#f6f8fa; padding:0.5rem; border-radius:4px; }
 .thread { cursor:pointer; padding:2px 4px; border-radius:4px; }
 .thread:hover { background:#eee; }
 #vaultPicker { margin-bottom:0.5rem; }
+.modal { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; }
+.modal-inner { background:#fff; width:480px; max-height:70vh; overflow:auto; border-radius:6px; box-shadow:0 4px 16px rgba(0,0,0,0.25); padding:0.75rem; }
+.entry { cursor:pointer; padding:2px 4px; border-radius:4px; }
+.entry:hover { background:#eef; }
+.crumb { cursor:pointer; color:#0366d6; }
+.crumb + .crumb:before { content:'/'; margin:0 4px; color:#666; }
 </style>
 </head>
 <body>
 <div id="sidebar">
   <h3>Setup</h3>
   <input id="vaultPath" placeholder="/path/to/vault" style="width:100%;" />
-  <button id="setVault">Select Vault</button>
+  <button id="browseVault">Browse…</button>
+  <button id="setVault">Use Path</button>
   <button id="reindex">Reindex</button>
   <div id="status" style="margin-top:0.5rem; font-size:0.8rem; color:#555"></div>
   <h3>Files</h3>
@@ -43,9 +50,21 @@ pre { background:#f6f8fa; padding:0.5rem; border-radius:4px; }
     <button id="chatBtn">Chat</button>
   </div>
 </div>
+<div class="modal" id="vaultModal">
+  <div class="modal-inner">
+    <h3>Select Vault</h3>
+    <div id="crumbs" style="font-size:0.8rem; margin-bottom:4px;"></div>
+    <div id="dirList" style="border:1px solid #ddd; padding:4px; min-height:200px;"></div>
+    <div style="margin-top:6px; text-align:right;">
+      <button id="chooseDir" disabled>Choose This Folder</button>
+      <button id="closeModal">Cancel</button>
+    </div>
+  </div>
+</div>
 <script>
 let currentThread = null;
 let selectedFile = null;
+let browsePath = '';
 async function api(path, opts={}) {
   const r = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts));
   if(!r.ok){ throw new Error(await r.text()) }
@@ -83,6 +102,39 @@ document.getElementById('setVault').onclick = async () => {
     document.getElementById('status').textContent='Vault: '+res.vault;
     await refreshTree();
   } catch(e){ alert(e); }
+};
+
+async function loadDir(rel=''){
+  const data = await api('/api/list?rel='+encodeURIComponent(rel));
+  browsePath = data.path;
+  const dirList = document.getElementById('dirList');
+  dirList.innerHTML='';
+  data.entries.forEach(e=>{
+    if(e.type==='file') return; // only dirs selectable
+    const d=document.createElement('div'); d.className='entry'; d.textContent=e.name+'/';
+    d.onclick=()=>{ loadDir((browsePath?browsePath+'/':'')+e.name); };
+    dirList.appendChild(d);
+  });
+  const crumbsEl=document.getElementById('crumbs');
+  crumbsEl.innerHTML='';
+  const parts=browsePath?browsePath.split('/'):[];
+  let accum='';
+  const rootCrumb=document.createElement('span'); rootCrumb.textContent='.'; rootCrumb.className='crumb'; rootCrumb.onclick=()=>loadDir(''); crumbsEl.appendChild(rootCrumb);
+  parts.forEach((p,i)=>{ accum += (i?'/':'')+p; const c=document.createElement('span'); c.textContent=p; c.className='crumb'; c.onclick=()=>loadDir(accum); crumbsEl.appendChild(c); });
+  document.getElementById('chooseDir').disabled=false;
+}
+
+document.getElementById('browseVault').onclick = async () => {
+  document.getElementById('vaultModal').style.display='flex';
+  try { await loadDir(''); } catch(e){ alert(e); }
+};
+document.getElementById('closeModal').onclick = () => {
+  document.getElementById('vaultModal').style.display='none';
+};
+document.getElementById('chooseDir').onclick = () => {
+  const vp=document.getElementById('vaultPath');
+  vp.value = browsePath ? (browsePath.startsWith('.')?browsePath:('./'+browsePath)) : '.';
+  document.getElementById('vaultModal').style.display='none';
 };
 
 document.getElementById('reindex').onclick = async () => {
