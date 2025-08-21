@@ -10,6 +10,7 @@ tauri = { version = "1", features = [ "shell-all", "dialog-open"] }
 anyhow = "1"
 
 [build-dependencies]
+tauri-build = { version = "1" }
 
 [profile.release]
 opt-level = 3

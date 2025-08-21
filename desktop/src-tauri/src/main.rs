@@ -17,9 +17,10 @@ fn start_backend(state: State<BackendProc>, python: Option<String>, port: Option
     }
     let py = python.unwrap_or_else(|| "python".to_string());
     let p = port.unwrap_or(37999);
-    let args = vec!["-m", "uvicorn", "webapp.api:app", "--host", "127.0.0.1", "--port", &p.to_string()];
+    let port_string = p.to_string();
+    let args = ["-m", "uvicorn", "webapp.api:app", "--host", "127.0.0.1", "--port", port_string.as_str()];
     let child = Command::new(py)
-        .args(args)
+        .args(&args)
         .spawn()
         .map_err(|e| format!("Failed to spawn backend: {e}"))?;
     *guard = Some(child);
