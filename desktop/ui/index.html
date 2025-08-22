@@ -11,55 +11,53 @@ button { cursor:pointer; }
 #appframe { width:100%; height: calc(100vh - 140px); border:0; }
 .badge { background:#334155; padding:2px 6px; border-radius:12px; font-size:11px; }
 </style>
-<!-- Load Tauri JS global (dev server serves this automatically) -->
-<script src="tauri.js"></script>
+<script src="tauri-bridge.js"></script>
 <script>
 let backendPort = 37999;
 function log(msg){ const el=document.getElementById('log'); if(!el) return; el.textContent += msg+"\n"; el.scrollTop=el.scrollHeight; }
 
-function getApi(){ return window.__TAURI__ || {}; }
-
-async function ensureBackend(){
-  const api = getApi();
-  const invoke = api.invoke || api.core?.invoke || api.tauri?.invoke;
-  if(!invoke){ log('invoke missing (waiting 100ms)'); return setTimeout(ensureBackend, 100); }
-  try {
-    const info = await invoke('start_backend', {});
-    backendPort = info.port;
-    log('Backend on port '+backendPort);
-    document.getElementById('appframe').src = 'http://127.0.0.1:'+backendPort+'/app/static.html';
-  } catch(e){ console.error(e); log('Backend error: '+e); }
+function tauriReady(cb){
+  const check = () => {
+    if(window.__TAURI__ && (window.__TAURI__.invoke || window.__TAURI__.tauri?.invoke || window.__TAURI__.core?.invoke)) return cb();
+    requestAnimationFrame(check);
+  }; check();
 }
 
-async function selectVault(){
-  const api = getApi();
-  const open = api.dialog?.open || api.core?.dialog?.open || api.tauri?.dialog?.open;
-  if(typeof open !== 'function'){
-    log('Dialog API unavailable (retrying soon)');
-    console.warn('Dialog API missing on __TAURI__');
-    return setTimeout(selectVault, 300);
+tauriReady(() => {
+  const invoke = window.__TAURI__.invoke || window.__TAURI__.core?.invoke || window.__TAURI__.tauri?.invoke;
+  const openDialog = window.__TAURI__.dialog?.open || window.__TAURI__.core?.dialog?.open || window.__TAURI__.tauri?.dialog?.open;
+  if(!invoke) log('invoke still missing after ready.');
+  if(!openDialog) log('dialog.open missing.');
+
+  async function ensureBackend(){
+    try {
+      const info = await invoke('start_backend', {});
+      backendPort = info.port;
+      log('Backend on port '+backendPort);
+      document.getElementById('appframe').src = 'http://127.0.0.1:'+backendPort+'/app/static.html';
+    } catch(e){ console.error(e); log('Backend error: '+e); }
   }
-  log('Select Vault clicked');
-  try {
-    const dir = await open({ directory: true, multiple: false, title: 'Select Vault Folder' });
-    if(!dir){ log('No vault selected.'); return; }
-    log('Selected vault: '+dir);
-    await fetch('http://127.0.0.1:'+backendPort+'/api/vault', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: dir})});
-    log('Vault registered.');
-  } catch(e){ console.error(e); log('Vault select error: '+e); }
-}
 
-async function reindex(){
-  log('Reindex requested...');
-  try {
-    const r = await fetch('http://127.0.0.1:'+backendPort+'/api/index', {method:'POST'});
-    if(!r.ok){ log('Reindex failed '+r.status); return; }
-    const j = await r.json();
-    log('Indexed '+j.total_chunks+' chunks');
-  } catch(e){ console.error(e); log('Reindex error '+e); }
-}
+  async function selectVault(){
+    if(typeof openDialog !== 'function'){ log('Dialog API unavailable'); return; }
+    try {
+      const dir = await openDialog({ directory: true, multiple: false, title: 'Select Vault Folder' });
+      if(!dir){ log('No vault selected.'); return; }
+      log('Selected vault: '+dir);
+      await fetch('http://127.0.0.1:'+backendPort+'/api/vault', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: dir})});
+      log('Vault registered.');
+    } catch(e){ console.error(e); log('Vault select error: '+e); }
+  }
 
-document.addEventListener('DOMContentLoaded', () => {
+  async function reindex(){
+    try {
+      const r = await fetch('http://127.0.0.1:'+backendPort+'/api/index', {method:'POST'});
+      if(!r.ok){ log('Reindex failed '+r.status); return; }
+      const j = await r.json();
+      log('Indexed '+j.total_chunks+' chunks');
+    } catch(e){ console.error(e); log('Reindex error '+e); }
+  }
+
   document.getElementById('btnVault').addEventListener('click', selectVault);
   document.getElementById('btnReindex').addEventListener('click', reindex);
   ensureBackend();
