@@ -11,6 +11,7 @@ anyhow = "1"
 
 [build-dependencies]
 tauri-build = { version = "1" }
+base64 = "0.21"
 
 [profile.release]
 opt-level = 3
