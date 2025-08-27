@@ -10,57 +10,91 @@ button { cursor:pointer; }
 #log { font-size:12px; background:#0f172a; color:#cbd5e1; padding:4px; height:90px; overflow:auto; }
 #appframe { width:100%; height: calc(100vh - 140px); border:0; }
 .badge { background:#334155; padding:2px 6px; border-radius:12px; font-size:11px; }
+/* Diagnostics & loading */
+#diagToggle { margin-left:auto; }
+#diagnostics { position:fixed; top:50px; right:10px; width:320px; background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:8px; font-size:12px; max-height:60vh; overflow:auto; display:none; box-shadow:0 4px 16px rgba(0,0,0,0.4); }
+#diagnostics h3 { margin:4px 0 6px; font-size:13px; }
+#diagnostics table { width:100%; border-collapse:collapse; }
+#diagnostics td { padding:2px 4px; vertical-align:top; }
+#diagnostics tr:nth-child(odd){ background:#0f172a; }
+.status-ok { color:#16a34a; }
+.status-bad { color:#dc2626; }
+#loadingOverlay { position:fixed; inset:0; background:#0f172acc; color:#fff; display:none; flex-direction:column; align-items:center; justify-content:center; gap:1rem; font-size:14px; z-index:50; }
+.spinner { width:48px; height:48px; border:5px solid #334155; border-top-color:#3b82f6; border-radius:50%; animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+/* Vault tree panel */
+#treeToggle { }
+#vaultTreePanel { position:fixed; top:50px; left:10px; width:340px; background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:8px; font-size:12px; max-height:70vh; overflow:auto; display:none; box-shadow:0 4px 16px rgba(0,0,0,0.4); }
+#vaultTreePanel h3 { margin:4px 0 8px; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+#vaultTreePanel input[type=search]{ width:100%; margin-bottom:6px; padding:3px 6px; background:#0f172a; border:1px solid #334155; color:#fff; border-radius:4px; }
+.tree-root { list-style:none; padding-left:4px; margin:0; }
+.tree-root ul { list-style:none; padding-left:14px; margin:2px 0; }
+.tree-item { cursor:pointer; }
+.tree-file { cursor:default; }
+.tree-folder > .label { font-weight:600; }
+.tree-folder.collapsed > ul { display:none; }
+.tree-folder .label::before { content:'▾'; display:inline-block; width:1em; }
+.tree-folder.collapsed .label::before { content:'▸'; }
+.tree-file::before { content:'📄'; margin-right:4px; }
+.small-btn { background:#334155; border:0; color:#e2e8f0; padding:2px 6px; font-size:11px; border-radius:4px; cursor:pointer; }
 </style>
-<script src="tauri-bridge.js"></script>
+<!-- Rely on Tauri injected global -->
 <script>
 let backendPort = 37999;
 function log(msg){ const el=document.getElementById('log'); if(!el) return; el.textContent += msg+"\n"; el.scrollTop=el.scrollHeight; }
+function tauriReady(cb){ const check = () => { if(window.__TAURI__ && (window.__TAURI__.invoke || window.__TAURI__.tauri?.invoke || window.__TAURI__.core?.invoke)) return cb(); requestAnimationFrame(check); }; check(); }
 
-function tauriReady(cb){
-  const check = () => {
-    if(window.__TAURI__ && (window.__TAURI__.invoke || window.__TAURI__.tauri?.invoke || window.__TAURI__.core?.invoke)) return cb();
-    requestAnimationFrame(check);
-  }; check();
-}
+function showLoading(msg){ const ov=document.getElementById('loadingOverlay'); if(ov){ ov.style.display='flex'; document.getElementById('loadingText').textContent=msg; } }
+function hideLoading(){ const ov=document.getElementById('loadingOverlay'); if(ov){ ov.style.display='none'; } }
+async function waitForHealth(){ for(let i=0;i<40;i++){ try{ const r=await fetch('http://127.0.0.1:'+backendPort+'/api/health'); if(r.ok) return true; }catch(_){} await new Promise(r=>setTimeout(r,250)); } log('Health check timeout'); return false; }
 
-tauriReady(() => {
-  const invoke = window.__TAURI__.invoke || window.__TAURI__.core?.invoke || window.__TAURI__.tauri?.invoke;
-  const openDialog = window.__TAURI__.dialog?.open || window.__TAURI__.core?.dialog?.open || window.__TAURI__.tauri?.dialog?.open;
-  if(!invoke) log('invoke still missing after ready.');
-  if(!openDialog) log('dialog.open missing.');
+async function loadDiagnostics(){ try { const invoke = window.__TAURI__?.invoke || window.__TAURI__?.tauri?.invoke || window.__TAURI__?.core?.invoke; if(!invoke){ document.getElementById('diagBody').textContent='invoke missing'; return; } const info = await invoke('get_diagnostics'); const root=document.getElementById('diagBody'); root.innerHTML = `<table>
+<tr><td>Backend</td><td>${info.backend_running?'<span class="status-ok">RUNNING</span>':'<span class="status-bad">STOPPED</span>'}</td></tr>
+<tr><td>Python</td><td>${info.python}</td></tr>
+<tr><td>Python deps</td><td>${info.py_ok?'<span class="status-ok">OK</span>':'<span class="status-bad">'+(info.py_error||'missing')+'</span>'}</td></tr>
+<tr><td>PYTHONPATH</td><td>${info.pythonpath||''}</td></tr>
+<tr><td>Port</td><td>${backendPort}</td></tr>
+</table>`; } catch(e){ document.getElementById('diagBody').textContent='Diagnostics error: '+e; } }
 
-  async function ensureBackend(){
-    try {
-      const info = await invoke('start_backend', {});
-      backendPort = info.port;
-      log('Backend on port '+backendPort);
-      document.getElementById('appframe').src = 'http://127.0.0.1:'+backendPort+'/app/static.html';
-    } catch(e){ console.error(e); log('Backend error: '+e); }
-  }
+// Vault tree ---------
+let vaultTreeData = null;
+function buildTree(paths){ const root={name:'/', children:{}, files:[]}; for(const p of paths){ const parts=p.split('/'); let cur=root; for(let i=0;i<parts.length;i++){ const part=parts[i]; const isFile = i===parts.length-1; if(isFile){ (cur.files||(cur.files=[])).push(part); } else { cur.children[part] = cur.children[part] || { name:part, children:{}, files:[] }; cur = cur.children[part]; } } } return root; }
+function renderTree(){ if(!vaultTreeData) return; const panel=document.getElementById('vaultTree'); panel.innerHTML=''; const filter=document.getElementById('treeFilter').value.toLowerCase(); const ul=document.createElement('ul'); ul.className='tree-root';
+ function addFolder(node, parentUl, path){ const folderLi=document.createElement('li'); folderLi.className='tree-folder'; folderLi.dataset.path=path; const label=document.createElement('span'); label.className='label tree-item'; label.textContent=node.name+(node!==vaultTreeData?'/':''); folderLi.appendChild(label); const innerUl=document.createElement('ul'); for(const [childName, childNode] of Object.entries(node.children||{}).sort()){ addFolder(childNode, innerUl, path+childName+'/'); }
+ for(const f of (node.files||[])){ if(filter && !f.toLowerCase().includes(filter)) continue; const fileLi=document.createElement('li'); fileLi.className='tree-file'; fileLi.textContent=f; fileLi.dataset.path=path+f; fileLi.addEventListener('click', ()=>{ log('File: '+fileLi.dataset.path); }); innerUl.appendChild(fileLi); }
+ if(filter && !Array.from(innerUl.querySelectorAll('li')).length){ return; }
+ folderLi.appendChild(innerUl); parentUl.appendChild(folderLi); }
+ for(const [name, child] of Object.entries(vaultTreeData.children)) addFolder(child, ul, name+'/'); panel.appendChild(ul); document.getElementById('treeStats').textContent = countFiles(vaultTreeData)+' files'; }
+function countFiles(node){ let n=(node.files||[]).length; for(const c of Object.values(node.children||{})) n+=countFiles(c); return n; }
+async function fetchVaultTree(){ try { showLoading('Loading vault tree...'); const r= await fetch('http://127.0.0.1:'+backendPort+'/api/tree'); if(!r.ok){ log('Tree fetch failed '+r.status); hideLoading(); return; } const j=await r.json(); const files=(j.files||[]).map(f=>f.file||f); vaultTreeData = buildTree(files); renderTree(); hideLoading(); } catch(e){ log('Tree fetch error '+e); hideLoading(); } }
 
-  async function selectVault(){
-    if(typeof openDialog !== 'function'){ log('Dialog API unavailable'); return; }
-    try {
-      const dir = await openDialog({ directory: true, multiple: false, title: 'Select Vault Folder' });
-      if(!dir){ log('No vault selected.'); return; }
-      log('Selected vault: '+dir);
-      await fetch('http://127.0.0.1:'+backendPort+'/api/vault', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: dir})});
-      log('Vault registered.');
-    } catch(e){ console.error(e); log('Vault select error: '+e); }
-  }
+function attachTreeEvents(){ const container=document.getElementById('vaultTreePanel'); container.addEventListener('click', e=>{ const t=e.target; if(t.classList.contains('label')){ const li=t.parentElement; li.classList.toggle('collapsed'); } }); document.getElementById('treeFilter').addEventListener('input', renderTree); document.getElementById('treeRefresh').addEventListener('click', fetchVaultTree); }
 
-  async function reindex(){
-    try {
-      const r = await fetch('http://127.0.0.1:'+backendPort+'/api/index', {method:'POST'});
-      if(!r.ok){ log('Reindex failed '+r.status); return; }
-      const j = await r.json();
-      log('Indexed '+j.total_chunks+' chunks');
-    } catch(e){ console.error(e); log('Reindex error '+e); }
-  }
+document.addEventListener('DOMContentLoaded', () => {
+  attachTreeEvents();
+  tauriReady(() => {
+    const invoke = window.__TAURI__?.invoke || window.__TAURI__?.tauri?.invoke || window.__TAURI__?.core?.invoke;
+    const openDialog = window.__TAURI__?.dialog?.open || window.__TAURI__?.tauri?.dialog?.open || window.__TAURI__?.core?.dialog?.open;
+    if(!invoke) log('invoke still missing after ready.');
+    if(!openDialog) log('dialog.open missing.');
 
-  document.getElementById('btnVault').addEventListener('click', selectVault);
-  document.getElementById('btnReindex').addEventListener('click', reindex);
-  ensureBackend();
+    async function ensureBackend(){ try { showLoading('Starting backend...'); const info = await invoke('start_backend', {}); backendPort = info.port; log('Backend on port '+backendPort); document.getElementById('appframe').src = 'http://127.0.0.1:'+backendPort+'/app/static.html'; await waitForHealth(); hideLoading(); } catch(e){ console.error(e); log('Backend error: '+e); hideLoading(); } }
+    async function selectVault(){ if(typeof openDialog !== 'function'){ log('Dialog API unavailable'); return; } try { const dir = await openDialog({ directory: true, multiple: false, title: 'Select Vault Folder' }); if(!dir){ log('No vault selected.'); return; } log('Selected vault: '+dir); showLoading('Registering vault...'); await fetch('http://127.0.0.1:'+backendPort+'/api/vault', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: dir})}); log('Vault registered.'); hideLoading(); loadDiagnostics(); fetchVaultTree(); document.getElementById('vaultTreePanel').style.display='block'; } catch(e){ console.error(e); log('Vault select error: '+e); hideLoading(); } }
+    async function reindex(){ try { showLoading('Reindexing...'); const r = await fetch('http://127.0.0.1:'+backendPort+'/api/index', {method:'POST'}); if(!r.ok){ log('Reindex failed '+r.status); hideLoading(); return; } const j = await r.json(); log('Indexed '+j.total_chunks+' chunks'); hideLoading(); loadDiagnostics(); fetchVaultTree(); } catch(e){ console.error(e); log('Reindex error '+e); hideLoading(); } }
+
+    const vaultBtn = document.getElementById('btnVault');
+    const reindexBtn = document.getElementById('btnReindex');
+    const diagToggle = document.getElementById('diagToggle');
+    const diagRefresh = document.getElementById('diagRefresh');
+    const treeToggle = document.getElementById('treeToggle');
+    if(vaultBtn) vaultBtn.addEventListener('click', selectVault);
+    if(reindexBtn) reindexBtn.addEventListener('click', reindex);
+    if(diagToggle) diagToggle.addEventListener('click', ()=>{ const d=document.getElementById('diagnostics'); const show=d.style.display==='none'; d.style.display=show?'block':'none'; if(show) loadDiagnostics(); });
+    if(diagRefresh) diagRefresh.addEventListener('click', loadDiagnostics);
+    if(treeToggle) treeToggle.addEventListener('click', ()=>{ const p=document.getElementById('vaultTreePanel'); const show=p.style.display==='none'; p.style.display=show?'block':'none'; if(show && !vaultTreeData) fetchVaultTree(); });
+
+    ensureBackend();
+  });
 });
 </script>
 </head>
@@ -70,7 +104,27 @@ tauriReady(() => {
   <span class="badge">Tauri</span>
   <button id="btnVault">Select Vault</button>
   <button id="btnReindex">Reindex</button>
+  <button id="treeToggle">Vault Tree</button>
+  <button id="diagToggle">Diagnostics</button>
 </header>
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div id="loadingText">Starting backend...</div>
+</div>
+<div id="vaultTreePanel">
+  <h3>Vault Tree <span id="treeStats" style="font-weight:400"></span></h3>
+  <input type="search" id="treeFilter" placeholder="Filter files..." />
+  <div id="vaultTree">Select a vault...</div>
+  <div style="margin-top:6px; display:flex; gap:6px;">
+    <button class="small-btn" id="treeRefresh">Refresh</button>
+    <button class="small-btn" onclick="fetchVaultTree()">Reload</button>
+  </div>
+</div>
+<div id="diagnostics">
+  <h3>Diagnostics</h3>
+  <div id="diagBody">Collecting...</div>
+  <button id="diagRefresh" style="margin-top:4px; width:100%">Refresh</button>
+</div>
 <iframe id="appframe"></iframe>
 <pre id="log"></pre>
 </body>

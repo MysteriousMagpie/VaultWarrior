@@ -6,6 +6,7 @@ src/main.rs:
 /Users/malachiledbetter/Documents/GitHub/VaultWarrior/desktop/src-tauri/target/debug/build/vaultwarrior-desktop-2bb911784457f9fd/out/icon.png:
 /Users/malachiledbetter/Documents/GitHub/VaultWarrior/desktop/src-tauri/target/debug/build/vaultwarrior-desktop-2bb911784457f9fd/out/Info.plist:
 
+# env-dep:CARGO_MANIFEST_DIR=/Users/malachiledbetter/Documents/GitHub/VaultWarrior/desktop/src-tauri
 # env-dep:CARGO_PKG_AUTHORS=
 # env-dep:CARGO_PKG_DESCRIPTION=
 # env-dep:OUT_DIR=/Users/malachiledbetter/Documents/GitHub/VaultWarrior/desktop/src-tauri/target/debug/build/vaultwarrior-desktop-2bb911784457f9fd/out
