@@ -13,6 +13,7 @@ struct AppState {
     proc: Mutex<Option<Child>>,
     python_cmd: Mutex<String>,
     port: Mutex<u16>,
+    last_restart: Mutex<Option<Instant>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -73,6 +74,7 @@ fn start_backend(state: State<AppState>, python: Option<String>, port: Option<u1
     let child = cmd.spawn().map_err(|e| format!("Failed to spawn backend: {e}"))?;
     *state.proc.lock().unwrap() = Some(child);
     *state.port.lock().unwrap() = chosen_port;
+    *state.last_restart.lock().unwrap() = Some(Instant::now());
     let ready = wait_for_port(chosen_port, 6000);
     Ok(BackendInfo { port: chosen_port, started: true && ready })
 }
@@ -81,10 +83,9 @@ fn graceful_stop(child: &mut Child) {
     #[cfg(unix)] {
         use nix::sys::signal::{kill, Signal};
         use nix::unistd::Pid;
-        if let Some(id) = child.id() {
-            // send SIGTERM to process group
-            let _ = kill(Pid::from_raw(-(id as i32)), Signal::SIGTERM);
-        }
+    let id = child.id();
+    // send SIGTERM to process group (negative PGID targets group)
+    let _ = kill(Pid::from_raw(-(id as i32)), Signal::SIGTERM);
     }
     // Wait up to 2s then force kill
     let start = Instant::now();
@@ -121,11 +122,15 @@ struct Diagnostics {
     py_error: Option<String>,
     pythonpath: Option<String>,
     port: u16,
+    pid: Option<u32>,
+    last_restart_secs: Option<u64>,
 }
 
 #[tauri::command]
 fn get_diagnostics(state: State<AppState>) -> Result<Diagnostics, String> {
-    let backend_running = state.proc.lock().unwrap().is_some();
+    let guard = state.proc.lock().unwrap();
+    let backend_running = guard.is_some();
+    let pid = guard.as_ref().map(|c| c.id());
     let python = state.python_cmd.lock().unwrap().clone();
     let (py_ok, py_error) = match Command::new(&python).args(["-c", "import uvicorn,fastapi"]).status() {
         Ok(s) if s.success() => (true, None),
@@ -134,13 +139,30 @@ fn get_diagnostics(state: State<AppState>) -> Result<Diagnostics, String> {
     };
     let pythonpath = std::env::var("PYTHONPATH").ok();
     let port = *state.port.lock().unwrap();
-    Ok(Diagnostics { backend_running, python, py_ok, py_error, pythonpath, port })
+    let last_restart_secs = state.last_restart.lock().unwrap().map(|t| t.elapsed().as_secs());
+    Ok(Diagnostics { backend_running, python, py_ok, py_error, pythonpath, port, pid, last_restart_secs })
+}
+
+#[tauri::command]
+fn open_vault_folder() -> Result<(), String> {
+    // Best effort: open current working directory (repo root); real vault path resides in Python layer.
+    let root = std::env::current_dir().map_err(|e| e.to_string())?;
+    opener::open(root).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_logs_dir() -> Result<(), String> {
+    // Placeholder: open OS temp dir where we could write future logs.
+    let dir = std::env::temp_dir();
+    opener::open(dir).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
-        .manage(AppState { proc: Mutex::new(None), python_cmd: Mutex::new("python".to_string()), port: Mutex::new(0) })
-        .invoke_handler(tauri::generate_handler![start_backend, stop_backend, restart_backend, get_diagnostics])
+    .manage(AppState { proc: Mutex::new(None), python_cmd: Mutex::new("python".to_string()), port: Mutex::new(0), last_restart: Mutex::new(None) })
+    .invoke_handler(tauri::generate_handler![start_backend, stop_backend, restart_backend, get_diagnostics, open_vault_folder, open_logs_dir])
         .on_window_event(|event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event.event() {
                 // ensure backend stopped

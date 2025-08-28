@@ -355,7 +355,7 @@ def enrich(
     vault = cfg.vault_path
     changed: List[Path] = []
     examined = 0
-    now_iso = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    now_iso = datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
     for p in vault.rglob('*.md'):
         rel = p.relative_to(vault).as_posix()
         # skip internal dirs

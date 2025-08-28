@@ -7,6 +7,7 @@ ai/core/config.py
 ai/core/gitwrap.py
 ai/core/index.py
 ai/core/llm.py
+ai/core/openai_embed.py
 ai/core/retrieve.py
 ai/core/threads.py
 ai/core/writeback.py

@@ -14,5 +14,15 @@ fn main() {
   let png_bytes = STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=").unwrap();
     fs::write(icon_path, png_bytes).expect("write placeholder icon");
   }
+  // Attempt to auto-generate icon variants via Python script if available (best-effort, ignore errors)
+  if std::process::Command::new("python")
+      .args(["scripts/gen_icons.py"]) // executed from workspace root when cargo runs build script? current dir is crate root
+      .status()
+      .map(|s| s.success())
+      .unwrap_or(false) {
+    println!("cargo:warning=Icon generation script executed successfully");
+  } else {
+    println!("cargo:warning=Icon generation skipped or failed (non-fatal)");
+  }
   tauri_build::build();
 }

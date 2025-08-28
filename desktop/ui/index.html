@@ -79,18 +79,24 @@ async function loadDiagnostics(){ try { const invoke = window.__TAURI__?.invoke 
 <tr><td>Python deps</td><td>${info.py_ok?'<span class="status-ok">OK</span>':'<span class="status-bad">'+(info.py_error||'missing')+'</span>'}</td></tr>
 <tr><td>PYTHONPATH</td><td>${info.pythonpath||''}</td></tr>
 <tr><td>Port</td><td>${backendPort}</td></tr>
+<tr><td>PID</td><td id=\"pidCell\">(loading)</td></tr>
+<tr><td>Last Restart</td><td id=\"restartCell\">(loading)</td></tr>
 <tr><td>Vector Provider</td><td id="provCell">(loading)</td></tr>
 <tr><td>Embed Model</td><td id="modelCell">(loading)</td></tr>
-</table>`; fetchManifestMeta(); } catch(e){ document.getElementById('diagBody').textContent='Diagnostics error: '+e; } }
+<tr><td>Total Chunks</td><td id="chunkCell">(loading)</td></tr>
+<tr><td>Index Age</td><td id="ageCell">(loading)</td></tr>
+</table>`; const pidCell=document.getElementById('pidCell'); if(pidCell) pidCell.textContent= info.pid? String(info.pid): '-'; const rCell=document.getElementById('restartCell'); if(rCell){ rCell.textContent = info.last_restart_secs!=null? (info.last_restart_secs<60? info.last_restart_secs+'s ago': (Math.floor(info.last_restart_secs/60)+'m ago')):'-'; } fetchManifestMeta(); } catch(e){ document.getElementById('diagBody').textContent='Diagnostics error: '+e; } }
 
 async function fetchManifestMeta(){
   async function attempt(url){ try { const r= await fetch(url,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); } catch(_){ return null; } }
   const base='http://127.0.0.1:'+backendPort;
   const mf = await attempt(base+'/api/manifest') || await attempt(base+'/_ai/index/manifest.json');
-  if(!mf) return;
-  const prov=document.getElementById('provCell'); const model=document.getElementById('modelCell');
+  const prov=document.getElementById('provCell'); const model=document.getElementById('modelCell'); const chunk=document.getElementById('chunkCell'); const age=document.getElementById('ageCell');
+  if(!mf){ if(prov) prov.textContent='(index not built)'; if(model) model.textContent='-'; if(chunk) chunk.textContent='-'; if(age) age.textContent='-'; return; }
   if(prov) prov.textContent = mf.provider||'local';
   if(model) model.textContent = mf.model||'default';
+  if(chunk) chunk.textContent = (mf.total_chunks!==undefined? mf.total_chunks : '?');
+  if(age){ const created = mf.created_at? Number(mf.created_at)*1000 : 0; if(created){ const diff=Date.now()-created; const mins=Math.max(0, Math.floor(diff/60000)); age.textContent = mins<60? mins+' min ago' : (Math.floor(mins/60)+' h ago'); } else { age.textContent='?'; } }
 }
 
 // Vault tree ---------
@@ -218,12 +224,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const vaultBtn = document.getElementById('btnVault');
   const reindexBtn = document.getElementById('btnReindex');
   const restartBtn = document.getElementById('btnRestart');
+  const openVaultBtn = document.getElementById('btnOpenVault');
+  const openLogsBtn = document.getElementById('btnOpenLogs');
     const diagToggle = document.getElementById('diagToggle');
     const diagRefresh = document.getElementById('diagRefresh');
     const treeToggle = document.getElementById('treeToggle');
     if(vaultBtn) vaultBtn.addEventListener('click', selectVault);
   if(reindexBtn) reindexBtn.addEventListener('click', reindex);
   if(restartBtn) restartBtn.addEventListener('click', async ()=>{ const inv = window.__TAURI__?.invoke || window.__TAURI__?.tauri?.invoke || window.__TAURI__?.core?.invoke; if(!inv) return; showLoading('Restarting backend...'); try { const info = await inv('restart_backend', {}); backendPort = info.port; const healthy=await waitForHealth(); document.getElementById('appframe').src = 'http://127.0.0.1:'+backendPort+'/app/static.html'; log('Backend restarted on '+backendPort+(healthy?'':' (health timeout)')); loadDiagnostics(); } catch(e){ log('Restart failed '+(e?.message||e),'error'); } hideLoading(); });
+  if(openVaultBtn) openVaultBtn.addEventListener('click', ()=>{ const inv = window.__TAURI__?.invoke || window.__TAURI__?.tauri?.invoke || window.__TAURI__?.core?.invoke; inv && inv('open_vault_folder'); });
+  if(openLogsBtn) openLogsBtn.addEventListener('click', ()=>{ const inv = window.__TAURI__?.invoke || window.__TAURI__?.tauri?.invoke || window.__TAURI__?.core?.invoke; inv && inv('open_logs_dir'); });
     if(diagToggle) diagToggle.addEventListener('click', ()=>{ const d=document.getElementById('diagnostics'); const show=d.style.display==='none'; d.style.display=show?'block':'none'; if(show) loadDiagnostics(); });
     if(diagRefresh) diagRefresh.addEventListener('click', loadDiagnostics);
   const treePanel = document.getElementById('vaultTreePanel');
@@ -251,6 +261,8 @@ document.addEventListener('DOMContentLoaded', () => {
   <span class="badge">Tauri</span>
   <button id="btnVault">Select Vault</button>
   <button id="btnReindex">Reindex</button>
+  <button id="btnOpenVault" title="Open vault folder">Open Vault</button>
+  <button id="btnOpenLogs" title="Open logs/temp directory">Logs</button>
   <button id="btnRestart" title="Restart backend">Restart</button>
   <button id="treeToggle">Vault Tree</button>
   <button id="diagToggle">Diagnostics</button>

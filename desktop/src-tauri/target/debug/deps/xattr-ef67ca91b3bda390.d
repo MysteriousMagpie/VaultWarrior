@@ -1,0 +1,9 @@
+/Users/malachiledbetter/Documents/GitHub/VaultWarrior/desktop/src-tauri/target/debug/deps/xattr-ef67ca91b3bda390.d: /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/lib.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/error.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/sys/mod.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/util.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/sys/linux_macos.rs
+
+/Users/malachiledbetter/Documents/GitHub/VaultWarrior/desktop/src-tauri/target/debug/deps/libxattr-ef67ca91b3bda390.rmeta: /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/lib.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/error.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/sys/mod.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/util.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/sys/linux_macos.rs
+
+/Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/lib.rs:
+/Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/error.rs:
+/Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/sys/mod.rs:
+/Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/util.rs:
+/Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/xattr-1.5.1/src/sys/linux_macos.rs:

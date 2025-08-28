@@ -1,0 +1,10 @@
+/Users/malachiledbetter/Documents/GitHub/VaultWarrior/desktop/src-tauri/target/debug/deps/filetime-05c2d660a982eacf.d: /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/lib.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/mod.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/utimes.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/macos.rs
+
+/Users/malachiledbetter/Documents/GitHub/VaultWarrior/desktop/src-tauri/target/debug/deps/libfiletime-05c2d660a982eacf.rlib: /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/lib.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/mod.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/utimes.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/macos.rs
+
+/Users/malachiledbetter/Documents/GitHub/VaultWarrior/desktop/src-tauri/target/debug/deps/libfiletime-05c2d660a982eacf.rmeta: /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/lib.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/mod.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/utimes.rs /Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/macos.rs
+
+/Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/lib.rs:
+/Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/mod.rs:
+/Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/utimes.rs:
+/Users/malachiledbetter/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/filetime-0.2.25/src/unix/macos.rs:

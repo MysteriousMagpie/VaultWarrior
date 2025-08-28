@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff", "mypy"]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "cairosvg", "pillow"]
 web = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0"]
 
 [project.scripts]

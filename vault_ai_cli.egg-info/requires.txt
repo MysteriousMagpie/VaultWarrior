@@ -12,6 +12,8 @@ pytest
 pytest-cov
 ruff
 mypy
+cairosvg
+pillow
 
 [web]
 fastapi>=0.110.0
