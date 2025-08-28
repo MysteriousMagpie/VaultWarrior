@@ -1,0 +1,10 @@
+sentence-transformers
+openai
+pyyaml
+pytest
+
+[dev]
+black
+flake8
+isort
+pytest

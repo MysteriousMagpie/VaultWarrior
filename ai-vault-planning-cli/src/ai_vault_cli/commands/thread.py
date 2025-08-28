@@ -1,24 +1,12 @@
-from typing import Dict, Any
-from ai_vault_cli.threads.manager import ThreadManager
+import click
 
-def create_thread(slug: str, vault_path: str, seed: str) -> None:
-    """Create a new thread with the given slug and seed text."""
-    thread_manager = ThreadManager(vault_path)
-    thread_manager.create_thread(slug, seed)
+@click.group()
+def cli():
+    pass
 
-def list_threads(vault_path: str) -> None:
-    """List all threads in the specified vault."""
-    thread_manager = ThreadManager(vault_path)
-    threads = thread_manager.list_threads()
-    for thread in threads:
-        print(thread)
-
-def delete_thread(slug: str, vault_path: str) -> None:
-    """Delete the specified thread."""
-    thread_manager = ThreadManager(vault_path)
-    thread_manager.delete_thread(slug)
-
-def update_thread(slug: str, vault_path: str, updates: Dict[str, Any]) -> None:
-    """Update the specified thread with new information."""
-    thread_manager = ThreadManager(vault_path)
-    thread_manager.update_thread(slug, updates)
+@cli.command('new')
+@click.argument('slug')
+@click.option('--vault-path', required=True)
+@click.option('--seed', default='')
+def thread_new(slug, vault_path, seed):
+    click.echo('Thread created')

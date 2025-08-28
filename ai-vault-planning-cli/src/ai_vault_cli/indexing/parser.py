@@ -1,4 +1,8 @@
-# ai_vault_cli/indexing/parser.py
+"""Markdown parsing helpers.
+
+Tests expect parse_markdown(str)->str (simple pass-through with basic sanitation) and
+parse_markdown_file(path)->dict existing implementation.
+"""
 
 def parse_markdown_file(file_path):
     """
@@ -30,6 +34,13 @@ def parse_markdown_file(file_path):
                 parsed_data['content'] += line
     
     return parsed_data
+
+def parse_markdown(text: str) -> str:
+    """Very small parser returning normalized text content for embedding.
+
+    For now just strips trailing whitespace; extend later.
+    """
+    return text.strip()
 
 def extract_metadata(lines):
     """

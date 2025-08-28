@@ -2,6 +2,7 @@
 
 import os
 import glob
+from typing import List
 
 def crawl_markdown_files(vault_path):
     """Crawl through the specified vault path and return a list of markdown files."""
@@ -20,3 +21,7 @@ def crawl_and_read(vault_path):
     for file in files:
         contents[file] = read_markdown_file(file)
     return contents
+
+def crawl_vault(vault_path: str) -> List[str]:
+    """Test-facing wrapper returning list of markdown file paths (strings)."""
+    return crawl_markdown_files(vault_path)

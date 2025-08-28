@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: ai-vault-planning-cli
+Version: 0.1.0
+Summary: A CLI for managing AI-assisted vault planning.
+Home-page: https://github.com/yourusername/ai-vault-planning-cli
+Author: Your Name
+Author-email: your.email@example.com
+License: MIT
+License-File: LICENSE
+Requires-Dist: sentence-transformers
+Requires-Dist: openai
+Requires-Dist: pyyaml
+Requires-Dist: pytest
+Provides-Extra: dev
+Requires-Dist: black; extra == "dev"
+Requires-Dist: flake8; extra == "dev"
+Requires-Dist: isort; extra == "dev"
+Requires-Dist: pytest; extra == "dev"
+Dynamic: license-file
