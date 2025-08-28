@@ -15,7 +15,7 @@
       "active": true,
       "identifier": "com.example.vaultwarrior",
       "targets": ["app"],
-      "icon": []
+  "icon": ["icons/icon.png", "icons/logo.svg"]
     },
     "allowlist": {
       "shell": {

@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import List, Dict, Any, Sequence
 import faiss  # type: ignore
 from sentence_transformers import SentenceTransformer  # type: ignore
+from . import openai_embed
 from .config import Config
 from . import index as index_mod
 import fnmatch
@@ -22,10 +23,19 @@ def retrieve(
     oversample: retrieve more initial candidates before filtering (defaults to 3*k if filters applied).
     """
     params = cfg.data['rag']
-    k = k or params['top_k']
-    model = SentenceTransformer(params['embed_model'])
+    k = int(k or params['top_k'] or 8)
+    use_openai = openai_embed.have_openai(cfg)
     faiss_index, chunks = index_mod.load_index(cfg)
-    q_emb = model.encode([query], convert_to_numpy=True, normalize_embeddings=True)
+    if use_openai:
+        import numpy as np  # type: ignore
+        q_vec = openai_embed.embed_texts(cfg, [query])[0]
+        q_emb = np.array([q_vec], dtype='float32')
+        # normalize
+        import numpy as _np
+        q_emb = q_emb / (_np.linalg.norm(q_emb, axis=1, keepdims=True)+1e-12)
+    else:
+        model = SentenceTransformer(params['embed_model'])
+        q_emb = model.encode([query], convert_to_numpy=True, normalize_embeddings=True)
     initial_k = k
     if (tag or path_glob):
         initial_k = oversample or (k * 3)

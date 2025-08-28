@@ -10,6 +10,7 @@ import yaml
 
 import faiss  # type: ignore
 from sentence_transformers import SentenceTransformer  # type: ignore
+from . import openai_embed
 
 from .config import Config
 
@@ -127,7 +128,10 @@ def build_index(cfg: Config, model: SentenceTransformer | None = None) -> Dict[s
     params = cfg.data['rag']
     exclude = params.get('exclude_globs', [])
     files = scan_files(vault, exclude)
-    model = model or SentenceTransformer(params['embed_model'])
+    # Only instantiate sentence-transformers if we won't use OpenAI
+    use_openai = openai_embed.have_openai(cfg)
+    if not use_openai:
+        model = model or SentenceTransformer(params['embed_model'])
     all_chunks: List[Chunk] = []
     texts: List[str] = []
     for file in files:
@@ -150,10 +154,23 @@ def build_index(cfg: Config, model: SentenceTransformer | None = None) -> Dict[s
             }))
             texts.append(chunk_text)
     if not texts:
-        dim = model.get_sentence_embedding_dimension()
+        if use_openai:
+            # default OpenAI embedding dims: small=1536, adjust if model differs
+            dim = 1536
+        else:
+            dim = model.get_sentence_embedding_dimension()  # type: ignore[arg-type]
         index = faiss.IndexFlatIP(dim)
     else:
-        embs = model.encode(texts, convert_to_numpy=True, normalize_embeddings=True)  # cosine via IP
+        if use_openai:
+            embs = openai_embed.embed_texts(cfg, texts)
+            import numpy as np  # type: ignore
+            embs = np.array(embs, dtype='float32')
+            # OpenAI embeddings already L2 normalized? We ensure normalization for IP cosine.
+            import numpy as _np
+            norms = _np.linalg.norm(embs, axis=1, keepdims=True) + 1e-12
+            embs = embs / norms
+        else:
+            embs = model.encode(texts, convert_to_numpy=True, normalize_embeddings=True)  # cosine via IP
         dim = embs.shape[1]
         index = faiss.IndexFlatIP(dim)
         index.add(embs)
@@ -165,7 +182,8 @@ def build_index(cfg: Config, model: SentenceTransformer | None = None) -> Dict[s
         for row in all_chunks:
             f.write(json.dumps(row) + '\n')
     manifest = {
-        'model': params['embed_model'],
+        'model': (params['openai_embedding_model'] if use_openai else params['embed_model']),
+        'provider': 'openai' if use_openai else 'local',
         'total_chunks': len(all_chunks),
         'created_at': time.time(),
     }

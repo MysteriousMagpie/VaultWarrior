@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="40" y1="40" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="200%" height="200%" color-interpolation-filters="sRGB">
+      <feOffset dx="0" dy="4"/>
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feColorMatrix in="b" type="matrix" values="0 0 0 0 0  0 0 0 0 0.2  0 0 0 0 0.4  0 0 0 0.3 0"/>
+      <feBlend in="SourceGraphic" mode="normal"/>
+    </filter>
+  </defs>
+  <rect x="0" y="0" width="180" height="180" rx="28" fill="url(#g1)"/>
+  <g filter="url(#shadow)">
+    <path d="M90 38c-18 0-40 6-40 18v36c0 28 26 50 40 54 14-4 40-26 40-54V56c0-12-22-18-40-18Z" fill="#0f172a" stroke="url(#g2)" stroke-width="4"/>
+    <path d="M90 54c-10 0-22 4-22 10v12c0 16 14 30 22 33 8-3 22-17 22-33V64c0-6-12-10-22-10Z" fill="url(#g2)"/>
+    <circle cx="90" cy="98" r="10" fill="#fff" fill-opacity="0.12" stroke="#fff" stroke-opacity="0.4" stroke-width="2"/>
+    <path d="M86 98h8M90 94v8" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <text x="50%" y="168" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" fill="#e2e8f0" font-weight="600">VW</text>
+</svg>

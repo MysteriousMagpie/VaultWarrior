@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from pathlib import Path
 import os
 from typing import List, Optional
+import json
 
 from ai.core import config as config_mod
 from ai.core import index as index_mod
@@ -81,6 +82,18 @@ def rebuild_index():
     manifest = index_mod.build_index(cfg)
     return manifest
 
+@app.get('/api/manifest')
+def get_manifest():
+    cfg = get_cfg()
+    mpath = cfg.vault_path / index_mod.INDEX_DIR / index_mod.MANIFEST_FILE
+    if not mpath.exists():
+        raise HTTPException(404, 'Manifest not found (index not built yet)')
+    try:
+        data = json.loads(mpath.read_text(encoding='utf-8'))
+    except Exception as e:
+        raise HTTPException(500, f'Manifest read error: {e}')
+    return data
+
 @app.post('/api/ask')
 def ask(req: AskRequest):
     cfg = get_cfg()
@@ -90,15 +103,29 @@ def ask(req: AskRequest):
 @app.post('/api/chat')
 def chat(req: ChatRequest):
     cfg = get_cfg()
-    # ensure thread
-    threads_mod.create_thread(cfg, req.thread)
+    threads_mod.create_thread(cfg, req.thread)  # ensure thread exists
     results = retrieve_mod.retrieve(cfg, req.message)
     citations = retrieve_mod.format_citations(results)
-    # naive call to underlying CLI LLM stream (reuse llm.core) - for now reuse existing function
     from ai.core import llm as llm_mod
     history = threads_mod.load_thread_history(cfg, req.thread)
+
+    guidance = (
+        "SYSTEM GUIDELINES:\n"
+        "1. Role: You are a concise, helpful research & planning assistant operating over a personal markdown knowledge base.\n"
+        "2. ALWAYS ground answers in provided Sources when possible. If uncertain, clearly say so and suggest how to refine.\n"
+        "3. Style: direct, neutral, markdown-friendly. Use bullet lists for multiple items.\n"
+        "4. If the user asks for a plan, produce a brief outline first, then offer deeper expansion.\n"
+        "5. If conversation context provides an earlier objective, relate the answer back to that objective when relevant.\n"
+        "6. NEVER fabricate file names or content not in citations/history.\n"
+        "7. When citing, you may inline minimal references like (file.md) or (file.md:heading) instead of full raw blocks.\n"
+    )
+
     prompt = (
-        "You are a planning assistant. Use context.\n" f"History:\n{history}\nUser: {req.message}\nSources:\n{citations}\n"
+        f"{guidance}\n"
+        f"Conversation History (most recent last):\n{history}\n"
+        f"User Message: {req.message}\n"
+        f"Top Retrieved Sources (may be partial excerpts):\n{citations}\n"
+        "Instructions: Craft the best possible assistant reply now following the SYSTEM GUIDELINES."
     )
     redactor = llm_mod.build_redactor(cfg)
     prompt = redactor(prompt)

@@ -13,6 +13,8 @@ DEFAULT_CONFIG = {
         "chunk_overlap": 200,
         "top_k": 8,
         "exclude_globs": ["_ai/**", ".obsidian/**"],
+    # optional OpenAI embedding override; if set and key present we use it
+    "openai_embedding_model": "text-embedding-3-small",
     },
     "writeback": {
         "thread_dir": "_ai/threads",

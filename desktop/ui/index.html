@@ -1,3 +1,17 @@
+#vaultTab { display:flex; flex-direction:column; gap:8px; }
+#vaultTab .vault-flex { display:flex; gap:12px; flex:1; min-height:300px; }
+#vaultTreeFull { flex:0 0 340px; }
+#vaultChatPane { flex:1; display:flex; flex-direction:column; border:1px solid #334155; background:#0f172a; border-radius:4px; }
+#vaultChat { flex:1; overflow-y:auto; padding:8px; font-size:13px; }
+#vaultChatInput { display:flex; gap:6px; padding:6px; border-top:1px solid #334155; background:#1e293b; }
+#vaultChatInput input[type=text]{ flex:1; padding:4px 6px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:4px; }
+.vmsg { margin:0 0 10px; line-height:1.35; white-space:pre-wrap; }
+.vmsg .role { font-weight:600; margin-right:4px; }
+.vmsg pre { background:#1e293b; padding:6px 8px; border-radius:4px; overflow:auto; }
+.vmsg code { background:#334155; padding:2px 4px; border-radius:4px; }
+.vmsg h1,.vmsg h2,.vmsg h3 { margin:0.7em 0 0.35em; }
+.vmsg ul { margin:0.4em 0 0.4em 1.25em; padding:0; }
+.vmsg blockquote { border-left:4px solid #475569; margin:0.4em 0; padding:0.25em 0 0.25em 0.75em; background:#1e293b; color:#cbd5e1; }
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,10 +19,10 @@
 <title>VaultWarrior Desktop</title>
 <style>
 body { font-family: system-ui, sans-serif; margin:0; }
-header { display:flex; gap:0.5rem; padding:0.5rem; background:#1e293b; color:#fff; align-items:center; }
+header { position:relative; display:flex; gap:0.5rem; padding:0.5rem; background:#1e293b; color:#fff; align-items:center; }
 button { cursor:pointer; }
 #log { font-size:12px; background:#0f172a; color:#cbd5e1; padding:4px; height:90px; overflow:auto; }
-#appframe { width:100%; height: calc(100vh - 140px); border:0; }
+#appframe { width:100%; height: calc(100vh - 170px); border:0; }
 .badge { background:#334155; padding:2px 6px; border-radius:12px; font-size:11px; }
 /* Diagnostics & loading */
 #diagToggle { margin-left:auto; }
@@ -23,9 +37,11 @@ button { cursor:pointer; }
 .spinner { width:48px; height:48px; border:5px solid #334155; border-top-color:#3b82f6; border-radius:50%; animation:spin 1s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 /* Vault tree panel */
-#treeToggle { }
-#vaultTreePanel { position:fixed; top:50px; left:10px; width:340px; background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:8px; font-size:12px; max-height:70vh; overflow:auto; display:none; box-shadow:0 4px 16px rgba(0,0,0,0.4); }
-#vaultTreePanel h3 { margin:4px 0 8px; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+#vaultTreePanel { position:absolute; top:100%; left:0; margin-top:4px; width:320px; background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:8px; font-size:12px; max-height:60vh; overflow:auto; display:none; box-shadow:0 8px 24px rgba(0,0,0,0.45); border-radius:6px; z-index:110; }
+#vaultTreePanel.docked { position:fixed; top:50px; left:10px; margin-top:0; height:auto; max-height:70vh; }
+#vaultTreePanel.open { animation:fadeIn .12s ease-out; }
+#vaultTreePanel h3 { margin:2px 0 6px; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(-4px);} to {opacity:1; transform:translateY(0);} }
 #vaultTreePanel input[type=search]{ width:100%; margin-bottom:6px; padding:3px 6px; background:#0f172a; border:1px solid #334155; color:#fff; border-radius:4px; }
 .tree-root { list-style:none; padding-left:4px; margin:0; }
 .tree-root ul { list-style:none; padding-left:14px; margin:2px 0; }
@@ -37,11 +53,20 @@ button { cursor:pointer; }
 .tree-folder.collapsed .label::before { content:'▸'; }
 .tree-file::before { content:'📄'; margin-right:4px; }
 .small-btn { background:#334155; border:0; color:#e2e8f0; padding:2px 6px; font-size:11px; border-radius:4px; cursor:pointer; }
+/* Tabs */
+#tabBar { display:flex; background:#0f172a; gap:2px; padding:4px 6px; border-bottom:1px solid #334155; }
+.tab { background:#1e293b; border:1px solid #334155; color:#e2e8f0; padding:4px 10px; font-size:12px; border-radius:4px 4px 0 0; cursor:pointer; position:relative; top:1px; }
+.tab.active { background:#334155; }
+.tab:disabled { opacity:0.4; cursor:default; }
+.tab-pane { display:none; padding:6px 8px; }
+.tab-pane.active { display:block; }
+#vaultTab .controls { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+#vaultTab input[type=search]{ width:240px; }
 </style>
 <!-- Rely on Tauri injected global -->
 <script>
 let backendPort = 37999;
-function log(msg){ const el=document.getElementById('log'); if(!el) return; el.textContent += msg+"\n"; el.scrollTop=el.scrollHeight; }
+function log(msg, level='info'){ const el=document.getElementById('log'); if(!el) return; const ts=new Date().toISOString().split('T')[1].split('Z')[0]; el.textContent += `[${ts}] [${level}] ${msg}\n`; el.scrollTop=el.scrollHeight; }
 function tauriReady(cb){ const check = () => { if(window.__TAURI__ && (window.__TAURI__.invoke || window.__TAURI__.tauri?.invoke || window.__TAURI__.core?.invoke)) return cb(); requestAnimationFrame(check); }; check(); }
 
 function showLoading(msg){ const ov=document.getElementById('loadingOverlay'); if(ov){ ov.style.display='flex'; document.getElementById('loadingText').textContent=msg; } }
@@ -54,21 +79,129 @@ async function loadDiagnostics(){ try { const invoke = window.__TAURI__?.invoke 
 <tr><td>Python deps</td><td>${info.py_ok?'<span class="status-ok">OK</span>':'<span class="status-bad">'+(info.py_error||'missing')+'</span>'}</td></tr>
 <tr><td>PYTHONPATH</td><td>${info.pythonpath||''}</td></tr>
 <tr><td>Port</td><td>${backendPort}</td></tr>
-</table>`; } catch(e){ document.getElementById('diagBody').textContent='Diagnostics error: '+e; } }
+<tr><td>Vector Provider</td><td id="provCell">(loading)</td></tr>
+<tr><td>Embed Model</td><td id="modelCell">(loading)</td></tr>
+</table>`; fetchManifestMeta(); } catch(e){ document.getElementById('diagBody').textContent='Diagnostics error: '+e; } }
+
+async function fetchManifestMeta(){
+  async function attempt(url){ try { const r= await fetch(url,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); } catch(_){ return null; } }
+  const base='http://127.0.0.1:'+backendPort;
+  const mf = await attempt(base+'/api/manifest') || await attempt(base+'/_ai/index/manifest.json');
+  if(!mf) return;
+  const prov=document.getElementById('provCell'); const model=document.getElementById('modelCell');
+  if(prov) prov.textContent = mf.provider||'local';
+  if(model) model.textContent = mf.model||'default';
+}
 
 // Vault tree ---------
+// ---- Vault tree state & helpers ----
 let vaultTreeData = null;
-function buildTree(paths){ const root={name:'/', children:{}, files:[]}; for(const p of paths){ const parts=p.split('/'); let cur=root; for(let i=0;i<parts.length;i++){ const part=parts[i]; const isFile = i===parts.length-1; if(isFile){ (cur.files||(cur.files=[])).push(part); } else { cur.children[part] = cur.children[part] || { name:part, children:{}, files:[] }; cur = cur.children[part]; } } } return root; }
-function renderTree(){ if(!vaultTreeData) return; const panel=document.getElementById('vaultTree'); panel.innerHTML=''; const filter=document.getElementById('treeFilter').value.toLowerCase(); const ul=document.createElement('ul'); ul.className='tree-root';
- function addFolder(node, parentUl, path){ const folderLi=document.createElement('li'); folderLi.className='tree-folder'; folderLi.dataset.path=path; const label=document.createElement('span'); label.className='label tree-item'; label.textContent=node.name+(node!==vaultTreeData?'/':''); folderLi.appendChild(label); const innerUl=document.createElement('ul'); for(const [childName, childNode] of Object.entries(node.children||{}).sort()){ addFolder(childNode, innerUl, path+childName+'/'); }
- for(const f of (node.files||[])){ if(filter && !f.toLowerCase().includes(filter)) continue; const fileLi=document.createElement('li'); fileLi.className='tree-file'; fileLi.textContent=f; fileLi.dataset.path=path+f; fileLi.addEventListener('click', ()=>{ log('File: '+fileLi.dataset.path); }); innerUl.appendChild(fileLi); }
- if(filter && !Array.from(innerUl.querySelectorAll('li')).length){ return; }
- folderLi.appendChild(innerUl); parentUl.appendChild(folderLi); }
- for(const [name, child] of Object.entries(vaultTreeData.children)) addFolder(child, ul, name+'/'); panel.appendChild(ul); document.getElementById('treeStats').textContent = countFiles(vaultTreeData)+' files'; }
-function countFiles(node){ let n=(node.files||[]).length; for(const c of Object.values(node.children||{})) n+=countFiles(c); return n; }
-async function fetchVaultTree(){ try { showLoading('Loading vault tree...'); const r= await fetch('http://127.0.0.1:'+backendPort+'/api/tree'); if(!r.ok){ log('Tree fetch failed '+r.status); hideLoading(); return; } const j=await r.json(); const files=(j.files||[]).map(f=>f.file||f); vaultTreeData = buildTree(files); renderTree(); hideLoading(); } catch(e){ log('Tree fetch error '+e); hideLoading(); } }
+let treeFilterValue = '';
+const TREE_STATE_KEY = 'vw_tree_state_v1';
+let collapsedSet = new Set();
+let dockedState = false;
+let filterDebounce = null;
 
-function attachTreeEvents(){ const container=document.getElementById('vaultTreePanel'); container.addEventListener('click', e=>{ const t=e.target; if(t.classList.contains('label')){ const li=t.parentElement; li.classList.toggle('collapsed'); } }); document.getElementById('treeFilter').addEventListener('input', renderTree); document.getElementById('treeRefresh').addEventListener('click', fetchVaultTree); }
+function loadTreeState(){
+  try {
+    const raw = localStorage.getItem(TREE_STATE_KEY);
+    if(!raw) return;
+    const parsed = JSON.parse(raw);
+    collapsedSet = new Set(parsed.collapsed||[]);
+    dockedState = !!parsed.docked;
+    const panel = document.getElementById('vaultTreePanel');
+    if(dockedState) panel.classList.add('docked');
+    if(parsed.filter) document.getElementById('treeFilter').value = parsed.filter;
+  } catch(e){ log('Failed to load tree state: '+e, 'warn'); }
+}
+function saveTreeState(){
+  try {
+    localStorage.setItem(TREE_STATE_KEY, JSON.stringify({
+      collapsed:[...collapsedSet],
+      docked:dockedState,
+      filter:document.getElementById('treeFilter').value
+    }));
+  } catch(e){ /* ignore quota */ }
+}
+
+function buildTree(paths){ const root={name:'/', children:{}, files:[]}; for(const p of paths){ if(!p) continue; const parts=p.split('/').filter(Boolean); let cur=root; for(let i=0;i<parts.length;i++){ const part=parts[i]; const isFile = i===parts.length-1; if(isFile){ (cur.files||(cur.files=[])).push(part); } else { cur.children[part] = cur.children[part] || { name:part, children:{}, files:[] }; cur = cur.children[part]; } } } return root; }
+function countFiles(node){ let n=(node.files||[]).length; for(const c of Object.values(node.children||{})) n+=countFiles(c); return n; }
+function renderTree(){ if(!vaultTreeData){ return; } const panel=document.getElementById('vaultTree'); if(!panel) return; panel.innerHTML=''; const fullContainer=document.getElementById('vaultTreeFull'); const filterVal=treeFilterValue || document.getElementById('treeFilter')?.value || ''; const filterLower=filterVal.toLowerCase(); const ul=document.createElement('ul'); ul.className='tree-root'; let renderedFiles=0; const RENDER_LIMIT=5000; let truncated=false;
+ function addFolder(node, parentUl, path){ const entries = Object.entries(node.children||{}).sort((a,b)=>a[0].localeCompare(b[0])); const hasFilter=!!filterVal; const folderLi=document.createElement('li'); folderLi.className='tree-folder'; folderLi.dataset.path=path; if(collapsedSet.has(path)) folderLi.classList.add('collapsed'); const label=document.createElement('span'); label.className='label tree-item'; label.textContent=node.name+(node!==vaultTreeData?'/' : ''); folderLi.appendChild(label); const innerUl=document.createElement('ul');
+  for(const [childName, childNode] of entries){ addFolder(childNode, innerUl, path+childName+'/'); }
+  const fileList = (node.files||[]).slice().sort((a,b)=>a.localeCompare(b));
+  for(const f of fileList){ if(renderedFiles>=RENDER_LIMIT){ truncated=true; break; } if(filterLower && !f.toLowerCase().includes(filterLower)) continue; const fileLi=document.createElement('li'); fileLi.className='tree-file'; fileLi.textContent=f; fileLi.title=path+f; fileLi.dataset.path=path+f; fileLi.addEventListener('click', ()=>{ log('File: '+fileLi.dataset.path); }); innerUl.appendChild(fileLi); renderedFiles++; }
+  if(filterLower){ // If after filtering nothing remains in this folder (and not root), skip it
+    if(!innerUl.querySelector('li')) return;
+  }
+  folderLi.appendChild(innerUl); parentUl.appendChild(folderLi); }
+ for(const [name, child] of Object.entries(vaultTreeData.children).sort((a,b)=>a[0].localeCompare(b[0]))){ addFolder(child, ul, name+'/'); }
+ panel.appendChild(ul); if(fullContainer){ fullContainer.innerHTML=''; fullContainer.appendChild(ul.cloneNode(true)); }
+ const statsEl=document.getElementById('treeStats'); if(statsEl){ statsEl.textContent = countFiles(vaultTreeData)+' files'+(truncated?' (truncated view)':''); }
+ saveTreeState(); }
+
+function setTreeLoading(msg='Loading...'){ const panel=document.getElementById('vaultTree'); if(panel) panel.innerHTML = `<div style="padding:4px;color:#94a3b8;">${msg}</div>`; }
+function setTreeError(message, retryFn){ const panel=document.getElementById('vaultTree'); if(!panel) return; panel.innerHTML = `<div style="color:#dc2626;">${message}</div>` + (retryFn?`<button class="small-btn" id="treeRetry">Retry</button>`:''); if(retryFn){ document.getElementById('treeRetry').onclick=retryFn; }
+}
+
+async function safeFetch(url, {method='GET', headers, body}={}, {retries=2, backoff=400, label='request'}={}){
+  for(let attempt=0; attempt<=retries; attempt++){
+    try {
+      const ctrl = new AbortController();
+      const to = setTimeout(()=>ctrl.abort(), 10000);
+      const r = await fetch(url, {method, headers, body, signal:ctrl.signal});
+      clearTimeout(to);
+      const contentType = r.headers.get('content-type')||'';
+      let json=null; if(contentType.includes('application/json')){ try{ json=await r.json(); }catch(parseErr){ log(`${label} JSON parse error: ${parseErr}`, 'error'); }
+      }
+      if(!r.ok){ return {ok:false, status:r.status, json, error:`HTTP ${r.status}`}; }
+      return {ok:true, status:r.status, json};
+    } catch(e){
+      const isAbort = e.name==='AbortError';
+      if(attempt===retries){ return {ok:false, error:isAbort? 'timeout' : e.message}; }
+      await new Promise(r=>setTimeout(r, backoff * (attempt+1))); // exponential-ish backoff
+    }
+  }
+  return {ok:false, error:'unknown'};
+}
+
+async function fetchVaultTree(){ setTreeLoading('Loading vault tree...'); const url='http://127.0.0.1:'+backendPort+'/api/tree'; const res = await safeFetch(url, {}, {label:'tree'}); if(!res.ok){ if(res.status===404){ setTreeError('Tree endpoint not found (404). Did the backend update?', fetchVaultTree); } else if(res.error==='timeout'){ setTreeError('Tree request timed out.', fetchVaultTree); } else { setTreeError('Failed to load tree: '+(res.error||res.status), fetchVaultTree); } log('Tree fetch failed: '+(res.error||res.status),'error'); return; } try { const files=(res.json.files||[]).map(f=>f.file||f).filter(f=>typeof f==='string'); vaultTreeData = buildTree(files); renderTree(); log('Tree loaded: '+files.length+' paths'); } catch(e){ setTreeError('Tree data parse error', fetchVaultTree); log('Tree parse error '+e,'error'); }
+}
+
+function attachTreeEvents(){ const panelContainer=document.getElementById('vaultTreePanel'); const fullTab=document.getElementById('vaultTab');
+  function onTreeClick(e){ const t=e.target; if(t.classList.contains('label')){ const li=t.parentElement; const path=li.dataset.path; const willCollapse=!li.classList.contains('collapsed'); li.classList.toggle('collapsed'); if(willCollapse) collapsedSet.add(path); else collapsedSet.delete(path); saveTreeState(); }}
+  panelContainer.addEventListener('click', onTreeClick);
+  if(fullTab) fullTab.addEventListener('click', onTreeClick);
+  function syncFilters(val){ const f1=document.getElementById('treeFilter'); const f2=document.getElementById('treeFilter2'); if(f1 && f1.value!==val) f1.value=val; if(f2 && f2.value!==val) f2.value=val; }
+  function onFilter(e){ treeFilterValue=e.target.value; syncFilters(treeFilterValue); clearTimeout(filterDebounce); filterDebounce=setTimeout(()=>renderTree(),150); }
+  document.getElementById('treeFilter').addEventListener('input', onFilter);
+  const f2=document.getElementById('treeFilter2'); if(f2) f2.addEventListener('input', onFilter);
+  document.getElementById('treeRefresh').addEventListener('click', ()=>{ collapsedSet.clear(); saveTreeState(); fetchVaultTree(); });
+  document.getElementById('treeCollapseAll').addEventListener('click', ()=>{ if(!vaultTreeData) return; collapsedSet = new Set(collectAllFolders(vaultTreeData)); renderTree(); });
+  document.getElementById('treeExpandAll').addEventListener('click', ()=>{ collapsedSet.clear(); renderTree(); });
+  document.getElementById('treeRefreshFull')?.addEventListener('click', fetchVaultTree);
+  document.getElementById('treeCollapseAllFull')?.addEventListener('click', ()=>{ if(!vaultTreeData) return; collapsedSet = new Set(collectAllFolders(vaultTreeData)); renderTree(); });
+  document.getElementById('treeExpandAllFull')?.addEventListener('click', ()=>{ collapsedSet.clear(); renderTree(); });
+
+  // Vault tab chat handlers
+  function vRenderMarkdown(md){ md = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    md = md.replace(/^```(\w+)?\n([\s\S]*?)```/gm,(m,lang,code)=>`<pre><code class="lang-${lang||''}">${code.replace(/`/g,'&#96;')}</code></pre>`);
+    md = md.replace(/^### (.*)$/gm,'<h3>$1</h3>').replace(/^## (.*)$/gm,'<h2>$1</h2>').replace(/^# (.*)$/gm,'<h1>$1</h1>');
+    md = md.replace(/^> (.*)$/gm,'<blockquote>$1</blockquote>');
+    md = md.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>');
+    md = md.replace(/`([^`]+)`/g,'<code>$1</code>');
+    md = md.replace(/^- (.*)$/gm,'<ul><li>$1</li></ul>').replace(/<\/ul>\n<ul>/g,'');
+    md = md.split(/\n{2,}/).map(p=>/^<h[1-3]|^<pre|^<blockquote|^<ul/.test(p)?p:`<p>${p.replace(/\n/g,'<br/>')}</p>`).join('\n');
+    return md; }
+  function vAppend(role,text){ const chat=document.getElementById('vaultChat'); if(!chat) return; const div=document.createElement('div'); div.className='vmsg'; div.innerHTML=`<span class='role'>${role}:</span> ${vRenderMarkdown(text)}`; chat.appendChild(div); chat.scrollTop=chat.scrollHeight; }
+  async function vAsk(type){ const q=document.getElementById('vaultChatQuestion').value.trim(); if(!q) return; const thread=document.getElementById('vaultThread').value.trim()||'default'; vAppend('you', q); try { let payload; let endpoint; if(type==='ask'){ endpoint='/api/ask'; payload={question:q}; } else { endpoint='/api/chat'; payload={thread, message:q, write:true}; }
+      const res = await safeFetch('http://127.0.0.1:'+backendPort+endpoint,{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)},{label:type}); if(!res.ok){ vAppend('error','Request failed '+(res.error||res.status)); return; } if(type==='ask'){ const r=res.json; const list=(r.results||[]).map(it=> (it.file||'')+' '+(it.heading||'')).join('\n'); vAppend('assistant','[results]\n'+list); } else { vAppend('assistant', res.json.answer || '(no answer)'); }
+    } catch(e){ vAppend('error',''+(e?.message||e)); } }
+  document.getElementById('vaultAskBtn')?.addEventListener('click', ()=>vAsk('ask'));
+  document.getElementById('vaultChatBtn')?.addEventListener('click', ()=>vAsk('chat'));
+  document.getElementById('vaultChatQuestion')?.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); vAsk('chat'); }});
+}
+function collectAllFolders(node, prefix=''){ let acc=[]; for(const [name, child] of Object.entries(node.children||{})){ const path= prefix+name+'/'; acc.push(path); acc = acc.concat(collectAllFolders(child, path)); } return acc; }
 
 document.addEventListener('DOMContentLoaded', () => {
   attachTreeEvents();
@@ -78,32 +211,47 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!invoke) log('invoke still missing after ready.');
     if(!openDialog) log('dialog.open missing.');
 
-    async function ensureBackend(){ try { showLoading('Starting backend...'); const info = await invoke('start_backend', {}); backendPort = info.port; log('Backend on port '+backendPort); document.getElementById('appframe').src = 'http://127.0.0.1:'+backendPort+'/app/static.html'; await waitForHealth(); hideLoading(); } catch(e){ console.error(e); log('Backend error: '+e); hideLoading(); } }
-    async function selectVault(){ if(typeof openDialog !== 'function'){ log('Dialog API unavailable'); return; } try { const dir = await openDialog({ directory: true, multiple: false, title: 'Select Vault Folder' }); if(!dir){ log('No vault selected.'); return; } log('Selected vault: '+dir); showLoading('Registering vault...'); await fetch('http://127.0.0.1:'+backendPort+'/api/vault', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: dir})}); log('Vault registered.'); hideLoading(); loadDiagnostics(); fetchVaultTree(); document.getElementById('vaultTreePanel').style.display='block'; } catch(e){ console.error(e); log('Vault select error: '+e); hideLoading(); } }
-    async function reindex(){ try { showLoading('Reindexing...'); const r = await fetch('http://127.0.0.1:'+backendPort+'/api/index', {method:'POST'}); if(!r.ok){ log('Reindex failed '+r.status); hideLoading(); return; } const j = await r.json(); log('Indexed '+j.total_chunks+' chunks'); hideLoading(); loadDiagnostics(); fetchVaultTree(); } catch(e){ console.error(e); log('Reindex error '+e); hideLoading(); } }
+  async function ensureBackend(){ try { showLoading('Starting backend...'); const info = await invoke('start_backend', {}); backendPort = info.port; log('Backend started on port '+backendPort); document.getElementById('appframe').src = 'http://127.0.0.1:'+backendPort+'/app/static.html'; const healthy=await waitForHealth(); hideLoading(); if(!healthy){ log('Backend health check failed','warn'); } } catch(e){ console.error(e); log('Backend start error: '+(e?.message||e),'error'); hideLoading(); } }
+  async function selectVault(){ if(typeof openDialog !== 'function'){ log('Dialog API unavailable (no native folder picker)','warn'); return; } try { const dir = await openDialog({ directory: true, multiple: false, title: 'Select Vault Folder' }); if(!dir){ log('Vault selection cancelled'); return; } log('Selected vault: '+dir); showLoading('Registering vault...'); const res = await safeFetch('http://127.0.0.1:'+backendPort+'/api/vault', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: dir})}, {label:'vault register'}); hideLoading(); if(!res.ok){ log('Vault register failed: '+(res.error||res.status),'error'); return; } log('Vault registered'); loadDiagnostics(); document.getElementById('vaultTreePanel').style.display='block'; const vaultTabBtn=document.getElementById('vaultTabBtn'); if(vaultTabBtn){ vaultTabBtn.disabled=false; } fetchVaultTree(); } catch(e){ console.error(e); log('Vault select error: '+(e?.message||e),'error'); hideLoading(); } }
+  async function reindex(){ try { showLoading('Reindexing...'); const res = await safeFetch('http://127.0.0.1:'+backendPort+'/api/index', {method:'POST'}, {label:'reindex', retries:1}); hideLoading(); if(!res.ok){ log('Reindex failed: '+(res.error||res.status),'error'); return; } const j=res.json||{}; log('Indexed '+(j.total_chunks||'?')+' chunks'); loadDiagnostics(); fetchVaultTree(); } catch(e){ console.error(e); log('Reindex error '+(e?.message||e),'error'); hideLoading(); } }
 
-    const vaultBtn = document.getElementById('btnVault');
-    const reindexBtn = document.getElementById('btnReindex');
+  const vaultBtn = document.getElementById('btnVault');
+  const reindexBtn = document.getElementById('btnReindex');
+  const restartBtn = document.getElementById('btnRestart');
     const diagToggle = document.getElementById('diagToggle');
     const diagRefresh = document.getElementById('diagRefresh');
     const treeToggle = document.getElementById('treeToggle');
     if(vaultBtn) vaultBtn.addEventListener('click', selectVault);
-    if(reindexBtn) reindexBtn.addEventListener('click', reindex);
+  if(reindexBtn) reindexBtn.addEventListener('click', reindex);
+  if(restartBtn) restartBtn.addEventListener('click', async ()=>{ const inv = window.__TAURI__?.invoke || window.__TAURI__?.tauri?.invoke || window.__TAURI__?.core?.invoke; if(!inv) return; showLoading('Restarting backend...'); try { const info = await inv('restart_backend', {}); backendPort = info.port; const healthy=await waitForHealth(); document.getElementById('appframe').src = 'http://127.0.0.1:'+backendPort+'/app/static.html'; log('Backend restarted on '+backendPort+(healthy?'':' (health timeout)')); loadDiagnostics(); } catch(e){ log('Restart failed '+(e?.message||e),'error'); } hideLoading(); });
     if(diagToggle) diagToggle.addEventListener('click', ()=>{ const d=document.getElementById('diagnostics'); const show=d.style.display==='none'; d.style.display=show?'block':'none'; if(show) loadDiagnostics(); });
     if(diagRefresh) diagRefresh.addEventListener('click', loadDiagnostics);
-    if(treeToggle) treeToggle.addEventListener('click', ()=>{ const p=document.getElementById('vaultTreePanel'); const show=p.style.display==='none'; p.style.display=show?'block':'none'; if(show && !vaultTreeData) fetchVaultTree(); });
+  const treePanel = document.getElementById('vaultTreePanel');
+  if(treeToggle) treeToggle.addEventListener('click', (e)=>{ e.stopPropagation(); const show=treePanel.style.display==='none'; treePanel.style.display=show?'block':'none'; if(show){ treePanel.classList.add('open'); if(!vaultTreeData) fetchVaultTree(); } });
+  // Keyboard shortcut Cmd/Ctrl+Shift+T toggles tree
+  document.addEventListener('keydown', ev=>{ if((ev.metaKey||ev.ctrlKey)&&ev.shiftKey&&ev.key.toLowerCase()==='t'){ ev.preventDefault(); treeToggle?.click(); }});
+  // Allow double-click on header badge to dock/undock
+  document.querySelector('.badge')?.addEventListener('dblclick', ()=>{ treePanel.classList.toggle('docked'); dockedState = treePanel.classList.contains('docked'); if(treePanel.style.display==='none') treePanel.style.display='block'; saveTreeState(); });
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (ev)=>{ const p=document.getElementById('vaultTreePanel'); if(!p||p.style.display==='none') return; if(!p.contains(ev.target) && ev.target.id!=='treeToggle'){ p.style.display='none'; }});
 
-    ensureBackend();
+  // Tabs wiring (static markup)
+  function activateTab(id){ document.querySelectorAll('#tabBar .tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===id)); document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id===id)); }
+  document.getElementById('tabBar').addEventListener('click', e=>{ const btn=e.target.closest('.tab'); if(!btn||btn.disabled) return; activateTab(btn.dataset.tab); if(btn.dataset.tab==='vaultTab' && !vaultTreeData){ fetchVaultTree(); } });
+  loadTreeState();
+  ensureBackend();
   });
 });
 </script>
 </head>
 <body>
 <header>
-  <strong>VaultWarrior Desktop</strong>
+  <img src="logo.svg" alt="VaultWarrior" style="height:28px;border-radius:6px;box-shadow:0 0 0 1px #334155;"/>
+  <strong style="margin-left:6px;">VaultWarrior Desktop</strong>
   <span class="badge">Tauri</span>
   <button id="btnVault">Select Vault</button>
   <button id="btnReindex">Reindex</button>
+  <button id="btnRestart" title="Restart backend">Restart</button>
   <button id="treeToggle">Vault Tree</button>
   <button id="diagToggle">Diagnostics</button>
 </header>
@@ -117,7 +265,9 @@ document.addEventListener('DOMContentLoaded', () => {
   <div id="vaultTree">Select a vault...</div>
   <div style="margin-top:6px; display:flex; gap:6px;">
     <button class="small-btn" id="treeRefresh">Refresh</button>
-    <button class="small-btn" onclick="fetchVaultTree()">Reload</button>
+  <button class="small-btn" onclick="fetchVaultTree()">Reload</button>
+  <button class="small-btn" id="treeCollapseAll" title="Collapse all folders">Collapse</button>
+  <button class="small-btn" id="treeExpandAll" title="Expand all folders">Expand</button>
   </div>
 </div>
 <div id="diagnostics">
@@ -125,7 +275,37 @@ document.addEventListener('DOMContentLoaded', () => {
   <div id="diagBody">Collecting...</div>
   <button id="diagRefresh" style="margin-top:4px; width:100%">Refresh</button>
 </div>
-<iframe id="appframe"></iframe>
+<div id="tabBar">
+  <button class="tab active" data-tab="appTab">App</button>
+  <button class="tab" data-tab="vaultTab" id="vaultTabBtn" disabled>Vault</button>
+</div>
+<div id="appTab" class="tab-pane active">
+  <iframe id="appframe"></iframe>
+</div>
+<div id="vaultTab" class="tab-pane">
+  <div class="controls">
+    <input type="search" id="treeFilter2" placeholder="Filter files..." />
+    <button class="small-btn" id="treeRefreshFull">Refresh</button>
+    <button class="small-btn" onclick="fetchVaultTree()">Reload</button>
+    <button class="small-btn" id="treeCollapseAllFull">Collapse</button>
+    <button class="small-btn" id="treeExpandAllFull">Expand</button>
+  </div>
+  <div class="vault-flex">
+    <div id="vaultTreeFull" style="max-height:calc(100vh - 260px); overflow:auto; font-size:12px; border:1px solid #334155; padding:6px; background:#1e293b; border-radius:4px;"></div>
+    <div id="vaultChatPane">
+      <div style="display:flex; gap:6px; padding:6px; border-bottom:1px solid #334155; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="vaultThread" placeholder="thread (e.g. planning)" style="flex:0 0 160px; padding:4px 6px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; border-radius:4px;" />
+        <span style="font-size:11px; color:#94a3b8;">Chat with your vault. Threads persist in vault.</span>
+      </div>
+      <div id="vaultChat"></div>
+      <div id="vaultChatInput">
+        <input type="text" id="vaultChatQuestion" placeholder="Ask or chat..." />
+        <button class="small-btn" id="vaultAskBtn">Ask</button>
+        <button class="small-btn" id="vaultChatBtn">Chat</button>
+      </div>
+    </div>
+  </div>
+</div>
 <pre id="log"></pre>
 </body>
 </html>
