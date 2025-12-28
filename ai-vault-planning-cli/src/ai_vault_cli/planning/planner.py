@@ -1,33 +1,36 @@
-# planner.py
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional
 
-from typing import List, Dict
+@dataclass
+class Plan:
+    title: str
+    tasks: List[str] = field(default_factory=list)
+    completed: bool = False
+    summary: Optional[str] = None
 
 class Planner:
     def __init__(self):
-        self.plans = []
+        self._plans: Dict[str, Plan] = {}
 
-    def create_plan(self, title: str, tasks: List[str]) -> Dict:
-        plan = {
-            'title': title,
-            'tasks': tasks,
-            'completed': False
-        }
-        self.plans.append(plan)
+    def create_plan(self, slug: str, tasks: Optional[List[str]] = None) -> Plan:
+        if not slug:
+            raise ValueError("slug required")
+        if slug in self._plans:
+            raise FileExistsError(slug)
+        plan = Plan(title=slug, tasks=tasks or ["task 1", "task 2"], summary=f"summary for {slug}")
+        self._plans[slug] = plan
         return plan
 
-    def complete_plan(self, title: str) -> bool:
-        for plan in self.plans:
-            if plan['title'] == title:
-                plan['completed'] = True
-                return True
+    def get_summary(self, slug: str) -> Optional[str]:
+        p = self._plans.get(slug)
+        return p.summary if p else None
+
+    def complete_plan(self, slug: str) -> bool:
+        p = self._plans.get(slug)
+        if p:
+            p.completed = True
+            return True
         return False
 
-    def get_plans(self) -> List[Dict]:
-        return self.plans
-
-    def summarize_plans(self) -> str:
-        summary = "Plans Summary:\n"
-        for plan in self.plans:
-            status = "Completed" if plan['completed'] else "Pending"
-            summary += f"- {plan['title']}: {status} with tasks {plan['tasks']}\n"
-        return summary.strip()
+    def get_plans(self) -> List[Plan]:
+        return list(self._plans.values())

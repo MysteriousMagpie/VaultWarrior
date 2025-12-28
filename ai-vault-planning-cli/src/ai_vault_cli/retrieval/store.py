@@ -21,5 +21,12 @@ class RetrievalStore:
         """List all entries in the store."""
         return [{"key": key, "value": value} for key, value in self.data.items()]
 
+    # Test-facing simple API
+    def add(self, item: Dict):
+        self.data[item.get('id')] = item
+
+    def retrieve(self, key):
+        return self.data.get(key)
+
 # Backwards compat for tests expecting Store symbol
 Store = RetrievalStore

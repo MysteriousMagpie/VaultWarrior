@@ -61,7 +61,10 @@ EOF
   fi
   # Install subprojects (planning CLI variants) editable so their tests import
   if [[ $ALL_TESTS -eq 1 ]]; then
-    for sub in ai-vault-planning-cli ai-vault-planning-cli-1; do
+    # Only install the canonical planning CLI subproject. A duplicate directory
+    # (ai-vault-planning-cli-1) exists with stale code and identical package
+    # name, which can shadow the updated implementation and break tests.
+    for sub in ai-vault-planning-cli; do
       if [[ -f "$sub/setup.cfg" || -f "$sub/pyproject.toml" ]]; then
         log "Ensuring editable install of $sub"
         (cd "$sub" && "$PIP" install -e '.[dev]' >/dev/null 2>&1 || true)
@@ -80,7 +83,7 @@ run_tests(){
     # Root tests
     if ! "$VENV_DIR/bin/pytest" -q tests; then log "Root tests failed"; exit 1; fi
     # Subprojects (each has its own test settings)
-    for sub in ai-vault-planning-cli ai-vault-planning-cli-1; do
+    for sub in ai-vault-planning-cli; do
       if [[ -d "$sub/tests" ]]; then
         log "Running tests in $sub"
         ( cd "$sub" && "$VENV_DIR/bin/pytest" -q ) || { log "Tests failed in $sub"; exit 1; }

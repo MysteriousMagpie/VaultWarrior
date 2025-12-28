@@ -1,12 +1,8 @@
 import click
 
-@click.group()
-def cli():
-    pass
-
-@cli.command('chat')
+@click.command()
 @click.argument('slug')
 @click.argument('message')
 @click.option('--write', is_flag=True)
-def chat_cmd(slug, message, write):
+def chat(slug, message, write):
     click.echo('Chat response')

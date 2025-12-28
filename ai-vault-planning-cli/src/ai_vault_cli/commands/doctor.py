@@ -1,15 +1,8 @@
 import click
 
-@click.group()
-def cli():
-    pass
-
-@cli.command('doctor')
-def doctor_cmd():
+@click.command()
+def doctor():
     click.echo('Sanity check complete')
-
-if __name__ == '__main__':
-    cli()
 import os
 
 def check_config_exists(config_path):

@@ -1,12 +1,13 @@
 import click
 
 @click.group()
-def cli():
+def thread():
+    """Thread operations"""
     pass
 
-@cli.command('new')
+@thread.command('new')
 @click.argument('slug')
-@click.option('--vault-path', required=True)
+@click.option('--vault-path', required=False)
 @click.option('--seed', default='')
 def thread_new(slug, vault_path, seed):
     click.echo('Thread created')

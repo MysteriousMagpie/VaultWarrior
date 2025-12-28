@@ -1,11 +1,7 @@
 import click
 
-@click.group()
-def cli():
-    pass
-
-@cli.command('capture')
+@click.command()
 @click.argument('text')
 @click.option('--write', is_flag=True)
-def capture_cmd(text, write):
+def capture(text, write):
     click.echo('Note captured')

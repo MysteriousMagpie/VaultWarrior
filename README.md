@@ -223,6 +223,12 @@ Style / lint tooling will be added as project matures.
 
 If you need deeper details see `Init.md` or ask for a specific area (indexing pipeline, retrieval ranking, planning prompt scaffolds, etc.).
 
+---
+## Archived Modules
+
+The former duplicate subproject directory `ai-vault-planning-cli-1/` has been archived (see `archive/ai-vault-planning-cli-1/`). It contained a stale copy of the planning CLI with the same import package name (`ai_vault_cli`) which caused import collisions during test collection. The dev workflow and test runner now intentionally ignore that duplicate. All active development lives in `ai-vault-planning-cli/`.
+
+
 ## Usage Example
 ```bash
 ai init /path/to/Vault
